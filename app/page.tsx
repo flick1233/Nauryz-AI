@@ -171,7 +171,10 @@ export default function NauryzAI() {
   const [calcCount, setCalcCount] = useState('');
   const [calcDays, setCalcDays] = useState('7');
   const [searchMode, setSearchMode] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  useEffect(() => {
+    setSidebarOpen(window.innerWidth >= 768);
+  }, []);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [sessionCost, setSessionCost] = useState(0);
 
@@ -473,6 +476,7 @@ export default function NauryzAI() {
         .chat-item:hover .chat-item-del { opacity: 1; }
         .chat-item-del:hover { color: #e57373; }
         .sidebar-footer { padding: 12px; border-top: 1px solid #1e3322; }
+        .sidebar-overlay { display: none; }
         .cost-badge {
           font-size: 11px; color: #4a6e50; padding: 5px 10px;
           background: #111a12; border-radius: 6px; border: 1px solid #1e3322;
@@ -538,6 +542,10 @@ export default function NauryzAI() {
           color: #7a9e80; transition: all 0.15s; display: flex; align-items: center; gap: 8px;
         }
         .suggestion:hover { background: #151f16; border-color: #2a4a2e; color: #b0d4b4; }
+        .welcome-stats { display: flex; gap: 16px; justify-content: center; margin-bottom: 24px; }
+        .stat { display: flex; flex-direction: column; align-items: center; background: #0f1a10; border: 1px solid #1e3322; border-radius: 12px; padding: 10px 18px; }
+        .stat-n { font-size: 22px; font-weight: 700; color: #7dc882; }
+        .stat-l { font-size: 11px; color: #4a6e50; margin-top: 2px; }
 
         /* Bubbles */
         .msg { display: flex; gap: 10px; }
@@ -663,16 +671,32 @@ export default function NauryzAI() {
         .btn-primary:disabled { background: #1a2e1c; color: #3a5a3e; cursor: default; }
         .btn-secondary { background: #151f16; color: #7a9e80; border: 1px solid #243824 !important; }
 
-        @media (max-width: 640px) {
-          .sidebar { position: fixed; z-index: 50; height: 100dvh; top: 0; left: 0; }
-          .sidebar.closed { width: 0; }
+        @media (max-width: 767px) {
+          .sidebar {
+            position: fixed; z-index: 100; height: 100dvh; top: 0; left: 0;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.6);
+          }
+          .sidebar.closed { width: 0; min-width: 0; }
+          .sidebar-overlay {
+            display: block; position: fixed; inset: 0; z-index: 99;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);
+          }
           .suggestions { grid-template-columns: 1fr; }
-          .bubble-wrap { max-width: 90%; }
-          .messages { padding: 14px 16px; }
+          .bubble-wrap { max-width: 92%; }
+          .messages { padding: 12px 12px; gap: 14px; }
+          .welcome { padding: 24px 16px; }
+          .welcome h1 { font-size: 20px; }
+          .welcome-icon { font-size: 44px; }
+          .header { padding: 10px 14px; }
+          .toolbar { padding: 6px 12px; }
+          .input-area { padding: 8px 12px 20px; }
         }
       `}</style>
 
       <div className="layout">
+        {/* Sidebar overlay for mobile */}
+        {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
         {/* Sidebar */}
         <div className={`sidebar ${sidebarOpen ? '' : 'closed'}`}>
           <div className="sidebar-header">
