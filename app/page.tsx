@@ -140,12 +140,34 @@ export default function NauryzAI() {
     if (activeChatId === chatId) { setActiveChatId(null); setMessages([]); }
   };
 
+  const MAX_IMAGE_EDGE = 1568; // оптимальный длинный край для vision-моделей Claude — большие фото Claude всё равно сначала уменьшит
+  const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // лимит Anthropic API на одно изображение в base64
+
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     if (file.type.startsWith('video/')) { extractFrames(file); return; }
-    const r = new FileReader();
-    r.onload = ev => { const d = ev.target?.result as string; setPendingImage({ data: d.split(',')[1], mediaType: file.type, preview: d }); };
-    r.readAsDataURL(file);
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(img.width, img.height));
+      const needsResize = scale < 1 || file.size > MAX_UPLOAD_BYTES;
+      if (!needsResize) {
+        const r = new FileReader();
+        r.onload = ev => { const d = ev.target?.result as string; setPendingImage({ data: d.split(',')[1], mediaType: file.type, preview: d }); };
+        r.readAsDataURL(file);
+        return;
+      }
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale) || img.width;
+      c.height = Math.round(img.height * scale) || img.height;
+      const ctx = c.getContext('2d');
+      ctx?.drawImage(img, 0, 0, c.width, c.height);
+      const d = c.toDataURL('image/jpeg', 0.85);
+      setPendingImage({ data: d.split(',')[1], mediaType: 'image/jpeg', preview: d });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); alert('Не удалось загрузить фото'); };
+    img.src = url;
   };
 
   const extractFrames = (file: File) => {

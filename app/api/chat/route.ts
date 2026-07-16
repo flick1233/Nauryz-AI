@@ -9,6 +9,10 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY || ''
 );
 
+// Фото/видео требуют более сильной модели для точной диагностики; обычный текстовый чат остаётся на Haiku ради стоимости.
+const MODEL_VISION = process.env.ANTHROPIC_MODEL_VISION || 'claude-sonnet-5';
+const MODEL_TEXT = process.env.ANTHROPIC_MODEL_TEXT || 'claude-haiku-4-5-20251001';
+
 const SYSTEM_PROMPT = `Ты — Nauryz AI, профессиональный агро-ассистент и аналитик для казахстанских фермеров.
 
 ТВОИ ВОЗМОЖНОСТИ:
@@ -22,17 +26,19 @@ const SYSTEM_PROMPT = `Ты — Nauryz AI, профессиональный аг
 
 ЯЗЫК: Отвечай на том языке, на котором написан вопрос (казахский, русский, английский).
 
-ПРИ АНАЛИЗЕ ФОТО ЖИВОТНОГО:
-🔍 ВИЗУАЛЬНЫЙ ОСМОТР: что видишь
-🩺 ДИАГНОЗ: название болезни/проблемы
-⚠️ СИМПТОМЫ: перечисли
-💊 ЛЕЧЕНИЕ: конкретные препараты и дозы
-👨‍⚕️ НУЖЕН ВЕТЕРИНАР: да/нет
-🔮 ПРОФИЛАКТИКА: как предотвратить
+ПРИ АНАЛИЗЕ ФОТО ИЛИ ВИДЕО ЖИВОТНОГО / ПТИЧНИКА — отвечай строго в этой структуре:
 
-ПРИ АНАЛИЗЕ ВИДЕО:
-🎬 ДВИЖЕНИЕ И ПОХОДКА: хромота, вялость, странные позы между кадрами
-Затем та же структура что для фото.
+🔍 ВИЗУАЛЬНЫЙ ОСМОТР: подробно опиши, что видно на фото — оперение/шерсть, поза, глаза, клюв/нос, помёт (цвет, консистенция), состояние подстилки и птичника, поведение между кадрами, если это видео (походка, хромота, вялость).
+
+⚠️ СИМПТОМЫ: маркированный список конкретных отклонений от нормы, которые ты обнаружил.
+
+🩺 ВЕРОЯТНЫЕ ПРИЧИНЫ: перечисли 2-4 наиболее вероятных диагноза/причины по убыванию вероятности, для каждой — короткое обоснование, почему именно эти визуальные признаки на неё указывают. Если картина неоднозначна — честно скажи об этом и укажи, какой диагноз наиболее вероятен, а какие менее.
+
+💊 РЕКОМЕНДАЦИИ: конкретные препараты, дозировки, сроки лечения и изоляции; изменения в кормлении/содержании; меры по дезинфекции птичника.
+
+👨‍⚕️ КОГДА ОБРАЩАТЬСЯ К ВЕТЕРИНАРУ: да/нет и почему — укажи тревожные признаки (например, массовый падёж, кровь, судороги), при которых промедление опасно и нужен очный осмотр специалиста немедленно.
+
+🔮 ПРОФИЛАКТИКА: как предотвратить повторение в стаде.
 
 ПРИ ЭКОНОМИЧЕСКИХ ВОПРОСАХ (себестоимость, рентабельность, бизнес-план):
 📊 ТЕКУЩАЯ СИТУАЦИЯ: анализ данных
@@ -86,6 +92,12 @@ async function searchKnowledge(query: string): Promise<string> {
   }
 }
 
+// Ориентировочные цены за токен, $/токен (input / output / запись в кэш / чтение из кэша).
+const MODEL_RATES: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
+  'claude-sonnet-5': { input: 3.0 / 1_000_000, output: 15.0 / 1_000_000, cacheWrite: 3.75 / 1_000_000, cacheRead: 0.3 / 1_000_000 },
+  'claude-haiku-4-5-20251001': { input: 1.0 / 1_000_000, output: 5.0 / 1_000_000, cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000 },
+};
+
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
@@ -98,7 +110,15 @@ export async function POST(req: NextRequest) {
 
     const hasMedia = lastMessage?.image || lastMessage?.frames;
     const ragContext = hasMedia ? '' : await searchKnowledge(queryText);
-    const systemWithContext = ragContext ? SYSTEM_PROMPT + ragContext : SYSTEM_PROMPT;
+
+    const model = hasMedia ? MODEL_VISION : MODEL_TEXT;
+
+    // Статичный промпт кэшируется (ephemeral, ~5 мин TTL) и переиспользуется между запросами
+    // всех пользователей — RAG-контекст динамический, поэтому идёт отдельным, некэшируемым блоком.
+    const system: Anthropic.Messages.TextBlockParam[] = [
+      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      ...(ragContext ? [{ type: 'text' as const, text: ragContext }] : []),
+    ];
 
     const anthropicMessages = messages.map((msg: any) => {
       if (msg.role === 'user' && msg.frames && msg.frames.length > 0) {
@@ -124,29 +144,41 @@ export async function POST(req: NextRequest) {
     });
 
     const stream = await client.messages.stream({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      system: systemWithContext,
+      model,
+      max_tokens: hasMedia ? 3072 : 2048,
+      system,
       messages: anthropicMessages,
     });
 
-    const INPUT_RATE = 1.0 / 1_000_000;
-    const OUTPUT_RATE = 5.0 / 1_000_000;
+    const rates = MODEL_RATES[model] ?? MODEL_RATES['claude-haiku-4-5-20251001'];
     const encoder = new TextEncoder();
 
     const readable = new ReadableStream({
       async start(controller) {
         let inputTokens = 0;
         let outputTokens = 0;
+        let cacheCreationTokens = 0;
+        let cacheReadTokens = 0;
         for await (const chunk of stream) {
           if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
             controller.enqueue(encoder.encode(chunk.delta.text));
           }
-          if (chunk.type === 'message_start') inputTokens = chunk.message.usage.input_tokens;
+          if (chunk.type === 'message_start') {
+            inputTokens = chunk.message.usage.input_tokens;
+            cacheCreationTokens = chunk.message.usage.cache_creation_input_tokens ?? 0;
+            cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
+          }
           if (chunk.type === 'message_delta') outputTokens = chunk.usage.output_tokens;
         }
-        const costUsd = inputTokens * INPUT_RATE + outputTokens * OUTPUT_RATE;
-        controller.enqueue(encoder.encode(`\n___COST___${JSON.stringify({ inputTokens, outputTokens, costUsd })}`));
+        const costUsd =
+          inputTokens * rates.input +
+          outputTokens * rates.output +
+          cacheCreationTokens * rates.cacheWrite +
+          cacheReadTokens * rates.cacheRead;
+        console.log(
+          `[chat] model=${model} input=${inputTokens} output=${outputTokens} cache_write=${cacheCreationTokens} cache_read=${cacheReadTokens} cost=$${costUsd.toFixed(5)}`
+        );
+        controller.enqueue(encoder.encode(`\n___COST___${JSON.stringify({ inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, costUsd })}`));
         controller.close();
       },
     });
