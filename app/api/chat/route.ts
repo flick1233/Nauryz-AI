@@ -164,37 +164,48 @@ export async function POST(req: NextRequest) {
 
     const readable = new ReadableStream({
       async start(controller) {
-        let inputTokens = 0;
-        let outputTokens = 0;
-        let cacheCreationTokens = 0;
-        let cacheReadTokens = 0;
-        for await (const chunk of stream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            controller.enqueue(encoder.encode(chunk.delta.text));
+        // ВРЕМЕННО (диагностика прод-падения /api/chat): ошибки из чтения стрима Anthropic
+        // раньше не попадали в внешний try/catch (тот уже успел вернуть Response), из-за чего
+        // они могли всплывать как необработанный reject и валить функцию без внятного сообщения.
+        try {
+          let inputTokens = 0;
+          let outputTokens = 0;
+          let cacheCreationTokens = 0;
+          let cacheReadTokens = 0;
+          for await (const chunk of stream) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(chunk.delta.text));
+            }
+            if (chunk.type === 'message_start') {
+              inputTokens = chunk.message.usage.input_tokens;
+              cacheCreationTokens = chunk.message.usage.cache_creation_input_tokens ?? 0;
+              cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
+            }
+            if (chunk.type === 'message_delta') outputTokens = chunk.usage.output_tokens;
           }
-          if (chunk.type === 'message_start') {
-            inputTokens = chunk.message.usage.input_tokens;
-            cacheCreationTokens = chunk.message.usage.cache_creation_input_tokens ?? 0;
-            cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
-          }
-          if (chunk.type === 'message_delta') outputTokens = chunk.usage.output_tokens;
+          const costUsd =
+            inputTokens * rates.input +
+            outputTokens * rates.output +
+            cacheCreationTokens * rates.cacheWrite +
+            cacheReadTokens * rates.cacheRead;
+          console.log(
+            `[chat] model=${model} input=${inputTokens} output=${outputTokens} cache_write=${cacheCreationTokens} cache_read=${cacheReadTokens} cost=$${costUsd.toFixed(5)}`
+          );
+          controller.enqueue(encoder.encode(`\n___COST___${JSON.stringify({ inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, costUsd })}`));
+          controller.close();
+        } catch (streamError: any) {
+          console.error('Chat API stream error:', streamError?.stack || streamError);
+          controller.enqueue(encoder.encode(`\n___COST___${JSON.stringify({ error: streamError?.message || 'Stream error' })}`));
+          controller.close();
         }
-        const costUsd =
-          inputTokens * rates.input +
-          outputTokens * rates.output +
-          cacheCreationTokens * rates.cacheWrite +
-          cacheReadTokens * rates.cacheRead;
-        console.log(
-          `[chat] model=${model} input=${inputTokens} output=${outputTokens} cache_write=${cacheCreationTokens} cache_read=${cacheReadTokens} cost=$${costUsd.toFixed(5)}`
-        );
-        controller.enqueue(encoder.encode(`\n___COST___${JSON.stringify({ inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, costUsd })}`));
-        controller.close();
       },
     });
 
     return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   } catch (error: any) {
-    console.error('Chat API error:', error);
-    return new Response(JSON.stringify({ error: error.message || 'Ошибка сервера' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    // ВРЕМЕННО: полный stack trace в логи Vercel + сообщение об ошибке в JSON-ответ,
+    // чтобы найти причину прод-падения /api/chat. Убрать после диагностики.
+    console.error('Chat API error:', error?.stack || error);
+    return new Response(JSON.stringify({ error: error?.message || 'Ошибка сервера', stack: error?.stack }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
