@@ -1,13 +1,20 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
-);
+// Ленивая инициализация: RAG по базе знаний — опциональная фича, её отсутствие
+// не должно валить весь чат (в т.ч. фото-запросы, которые Supabase не используют).
+let supabase: SupabaseClient | null = null;
+function getSupabase() {
+  if (supabase) return supabase;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  supabase = createClient(url, key);
+  return supabase;
+}
 
 // Фото/видео требуют более сильной модели для точной диагностики; обычный текстовый чат остаётся на Haiku ради стоимости.
 const MODEL_VISION = process.env.ANTHROPIC_MODEL_VISION || 'claude-sonnet-5';
@@ -75,9 +82,11 @@ async function getEmbedding(text: string): Promise<number[] | null> {
 
 async function searchKnowledge(query: string): Promise<string> {
   try {
+    const db = getSupabase();
+    if (!db) return '';
     const embedding = await getEmbedding(query);
     if (!embedding) return '';
-    const { data, error } = await supabase.rpc('match_chunks', {
+    const { data, error } = await db.rpc('match_chunks', {
       query_embedding: embedding,
       match_count: 4,
       match_threshold: 0.45,
