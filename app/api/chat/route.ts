@@ -61,6 +61,11 @@ const SYSTEM_PROMPT = `Ты — Nauryz AI, профессиональный аг
 
 ВАЖНО: Всегда давай конкретные цифры, дозы, сроки. Избегай общих фраз. Если не знаешь точно — скажи и предложи обратиться к специалисту.`;
 
+// Колонка knowledge_chunks.embedding — vector(384) (см. scripts/ingest-sources.cjs).
+// text-embedding-3-small нативно отдаёт 1536 — без dimensions:384 запрос к match_chunks
+// падает с "expected 384 dimensions, not 1536" и поиск молча возвращает пусто.
+const EMBEDDING_DIMENSIONS = 384;
+
 async function getEmbedding(text: string): Promise<number[] | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -71,7 +76,7 @@ async function getEmbedding(text: string): Promise<number[] | null> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model: 'text-embedding-3-small', input: text }),
+      body: JSON.stringify({ model: 'text-embedding-3-small', input: text, dimensions: EMBEDDING_DIMENSIONS }),
     });
     const data = await response.json();
     return data.data?.[0]?.embedding ?? null;
@@ -86,12 +91,17 @@ async function searchKnowledge(query: string): Promise<string> {
     if (!db) return '';
     const embedding = await getEmbedding(query);
     if (!embedding) return '';
+    // 0.35 откалиброван вручную на реальных cosine-similarity исходной базы +
+    // FAO-контента после перехода на text-embedding-3-small(dimensions:384) —
+    // на 0.45 отсекались релевантные результаты (напр. болезнь Марека для
+    // запроса "курица хромает" давала ~0.35).
     const { data, error } = await db.rpc('match_chunks', {
       query_embedding: embedding,
       match_count: 4,
-      match_threshold: 0.45,
+      match_threshold: 0.35,
     });
     if (error || !data || data.length === 0) return '';
+    console.log(`[rag] "${query.slice(0, 60)}" -> ${data.map((c: any) => `${c.chunk_id}(${c.similarity?.toFixed(2)})`).join(', ')}`);
     const context = data
       .map((chunk: any) => `[${chunk.source}]\n${chunk.content}`)
       .join('\n\n---\n\n');
