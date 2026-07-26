@@ -184,21 +184,27 @@
   .dlg-sheet { width: 100%; max-height: 90vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; animation: sheetUp .26s ease both; }
 }
 
-/* Modal (calculator — legacy styling, not yet redesigned this stage) */
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; backdrop-filter: blur(4px); }
-.modal { background: var(--color-surface); border-radius: var(--radius-lg); padding: 24px; width: 100%; max-width: 360px; box-shadow: var(--shadow-lg); font-family: var(--font-body); color: var(--color-text); }
-.modal h2 { font-family: var(--font-heading); font-size: 18px; margin-bottom: 18px; }
-.field { margin-bottom: 12px; }
-.field label { display: block; font-size: 11px; color: var(--color-neutral-600); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
-.field select, .field input { width: 100%; background: var(--color-bg); border: 1px solid var(--color-divider); color: var(--color-text); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 14px; outline: none; font-family: inherit; }
-.field select:focus, .field input:focus { border-color: var(--color-accent); }
-.calc-res { background: var(--color-accent-100); border-radius: var(--radius-sm); padding: 16px; margin: 14px 0; text-align: center; }
-.calc-big { font-size: 32px; font-weight: 700; color: var(--color-accent-800); }
-.calc-sub { font-size: 12px; color: var(--color-accent-800); opacity: .8; margin-top: 4px; }
-.mbtns { display: flex; gap: 8px; margin-top: 6px; }
-.mbtns button { flex: 1; padding: 10px; border-radius: 999px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; }
-.mprim { background: var(--color-accent); color: #fbf4e9; } .mprim:hover { background: var(--color-accent-600); } .mprim:disabled { background: var(--color-neutral-300); color: var(--color-neutral-600); cursor: default; }
-.msec { background: transparent; color: var(--color-text); border: 1px solid var(--color-divider) !important; }
+/* FEED CALCULATOR — inline chat card + header modal (both share these classes) */
+.calc-card-title { font-family: var(--font-heading); font-size: 16px; }
+.calc-field { display: flex; flex-direction: column; gap: 6px; }
+.calc-label { font-size: 12px; font-weight: 700; color: var(--color-accent-onbg); }
+.calc-seg-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.calc-seg-btn { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: none; background: var(--color-bg); color: var(--color-text); cursor: pointer; font-family: var(--font-body); transition: background .15s, color .15s; }
+.calc-seg-btn.flex1 { flex: 1; padding: 8px 6px; font-size: 13px; }
+.calc-seg-btn.active { background: var(--color-accent); color: #fbf4e9; }
+.calc-seg-btn:not(.active):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.calc-age-row { display: flex; gap: 6px; align-items: center; }
+.calc-input { width: 100%; background: var(--color-bg); border: 1px solid var(--color-divider); color: var(--color-text); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 14px; outline: none; font-family: inherit; }
+.calc-input:focus { border-color: var(--color-accent); }
+.calc-result { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: var(--radius-sm); background: var(--color-accent-100); }
+.calc-result-label { font-size: 12px; color: var(--color-accent-800); margin-bottom: 2px; }
+.calc-result-big { font-size: 22px; font-weight: 800; color: var(--color-accent-800); }
+.calc-result-mid { font-size: 21px; font-weight: 800; color: var(--color-accent-800); margin-top: 8px; }
+.calc-result-sub { font-size: 11.5px; color: var(--color-accent-800); opacity: .85; }
+.calc-hr { height: 1px; background: rgba(0,0,0,.08); margin: 6px 0; }
+.calc-note { font-size: 12px; color: var(--color-accent-onbg); }
+.calc-water-card { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--color-accent-2-100); display: flex; flex-direction: column; gap: 2px; }
+.calc-water-title { font-size: 14.5px; font-weight: 700; color: var(--color-accent-2-800); }
 
 .sb-overlay { display: none; }
 @media (max-width: 767px) {

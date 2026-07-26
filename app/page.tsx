@@ -15,6 +15,7 @@ interface Message {
   id: string; role: 'user' | 'assistant'; content: string;
   image?: ImageData; frames?: ImageData[]; videoPreview?: string;
   diagnosis?: DiagnosisData;
+  isCalcCard?: boolean;
   costUsd?: number; timestamp: Date;
 }
 interface Chat { id: string; title: string; messages: Message[]; createdAt: Date; }
@@ -28,23 +29,46 @@ const SEVERITY_STYLE: Record<Severity, { bar: string; text: string; bg: string }
 };
 
 const SUGGESTIONS = [
-  { emoji: '🐔', text: 'Курица хромает, что делать?' },
-  { emoji: '🥚', text: 'Куры перестали нести яйца' },
-  { emoji: '💊', text: 'Норма корма для бройлеров' },
-  { emoji: '🌿', text: 'Признаки авитаминоза у кур' },
-  { emoji: '🦠', text: 'Болезнь Ньюкасла — симптомы' },
-  { emoji: '📋', text: 'Субсидии МСХ РК 2026' },
-  { emoji: '🌾', text: 'Бизнес-план птицефабрики' },
-  { emoji: '🔬', text: 'Селекция бройлеров — кроссы' },
+  { id: 'lame', emoji: '🐔', text: 'Курица хромает, что делать?' },
+  { id: 'eggs', emoji: '🥚', text: 'Куры перестали нести яйца' },
+  { id: 'feed', emoji: '💊', text: 'Норма корма для бройлеров' },
+  { id: 'vitamin', emoji: '🌿', text: 'Признаки авитаминоза у кур' },
+  { id: 'newcastle', emoji: '🦠', text: 'Болезнь Ньюкасла — симптомы' },
+  { id: 'subsidy', emoji: '📋', text: 'Субсидии МСХ РК 2026' },
+  { id: 'bizplan', emoji: '🌾', text: 'Бизнес-план птицефабрики' },
+  { id: 'breeding', emoji: '🔬', text: 'Селекция бройлеров — кроссы' },
 ];
 
-const FEED_ANIMALS = [
-  { label: 'Бройлер 🐔', perHead: 120 },
-  { label: 'Несушка 🥚', perHead: 110 },
-  { label: 'Индейка 🦃', perHead: 300 },
-  { label: 'Утка 🦆', perHead: 200 },
-  { label: 'Гусь 🪿', perHead: 400 },
+// Инлайн-калькулятор в чате (клик на "Норма корма для бройлеров") — design_handoff README.
+const AGE_GROUPS = [
+  { id: 'd1', label: '1–7 дней', min: 15, max: 20, protein: '22–24%' },
+  { id: 'd2', label: '8–21 день', min: 40, max: 60, protein: '20–22%' },
+  { id: 'd3', label: '22–35 дней', min: 80, max: 120, protein: '18–20%' },
+  { id: 'd4', label: '36+ дней', min: 130, max: 160, protein: '16–18%' },
 ];
+
+// Полноценный калькулятор (кнопка "⚖️ Калькулятор" в шапке).
+type BirdType = 'broiler' | 'layer' | 'young';
+const BIRD_TYPES: { id: BirdType; label: string }[] = [
+  { id: 'broiler', label: 'Бройлер' },
+  { id: 'layer', label: 'Несушка' },
+  { id: 'young', label: 'Молодняк' },
+];
+function feedCalcRange(birdType: BirdType, ageValue: number, ageUnit: 'days' | 'weeks') {
+  const ageDays = ageUnit === 'weeks' ? ageValue * 7 : ageValue;
+  if (birdType === 'layer') return { min: 110, max: 120 };
+  if (birdType === 'young') {
+    if (ageDays <= 28) return { min: 10, max: 20 };
+    if (ageDays <= 56) return { min: 30, max: 50 };
+    if (ageDays <= 112) return { min: 50, max: 70 };
+    return { min: 70, max: 90 };
+  }
+  if (ageDays <= 7) return { min: 15, max: 20 };
+  if (ageDays <= 21) return { min: 40, max: 60 };
+  if (ageDays <= 35) return { min: 80, max: 120 };
+  return { min: 130, max: 160 };
+}
+function fmtRu(n: number) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
 
 // Логотип-росток из design-handoff (Nauryz AI - Web.dc.html) — воспроизведён как есть, не заменён на Lucide.
 function Logo({ size = 20, strokeWidth = 2.5 }: { size?: number; strokeWidth?: number }) {
@@ -148,6 +172,117 @@ function DiagnosisModal({ diagnosis, onClose }: { diagnosis: DiagnosisData; onCl
   );
 }
 
+// Живой калькулятор в самом сообщении чата — реальное состояние, не заскриптованный текст
+// (design_handoff README: "Норма корма для бройлеров" quick question).
+function InlineCalcCard({ ageId, heads, onAgeChange, onHeadsChange }: {
+  ageId: string; heads: number; onAgeChange: (id: string) => void; onHeadsChange: (n: number) => void;
+}) {
+  const group = AGE_GROUPS.find(g => g.id === ageId) || AGE_GROUPS[0];
+  const resultText = heads > 0 ? `${fmtRu(heads * group.min / 1000)}–${fmtRu(heads * group.max / 1000)} кг/сутки` : 'Укажите поголовье';
+  return (
+    <div className="diag-card">
+      <div className="calc-card-title">🧮 Калькулятор корма для бройлеров</div>
+      <div className="calc-field">
+        <label className="calc-label">Возраст птицы</label>
+        <div className="calc-seg-wrap">
+          {AGE_GROUPS.map(g => (
+            <button key={g.id} className={`calc-seg-btn ${g.id === ageId ? 'active' : ''}`} onClick={() => onAgeChange(g.id)}>{g.label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="calc-field">
+        <label className="calc-label">Поголовье (голов)</label>
+        <input className="calc-input" type="number" min={0} value={heads} onChange={e => onHeadsChange(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+      </div>
+      <div className="calc-result">
+        <div className="calc-result-label">Суточная норма для {heads} гол. ({group.label})</div>
+        <div className="calc-result-big">{resultText}</div>
+        <div className="calc-result-sub">Белок в корме: {group.protein}</div>
+      </div>
+      <div className="calc-note">Вода нужна примерно вдвое больше объёма корма, особенно в жару.</div>
+    </div>
+  );
+}
+
+function FeedCalcModal({ onClose }: { onClose: () => void }) {
+  const [birdType, setBirdType] = useState<BirdType>('broiler');
+  const [ageValue, setAgeValue] = useState(14);
+  const [ageUnit, setAgeUnit] = useState<'days' | 'weeks'>('days');
+  const [heads, setHeads] = useState(100);
+  const [price, setPrice] = useState(0);
+
+  const range = feedCalcRange(birdType, ageValue, ageUnit);
+  const avgG = (range.min + range.max) / 2;
+  const dailyKg = (avgG * heads) / 1000;
+  const monthlyKg = (avgG * heads * 30) / 1000;
+  const monthlyCost = Math.round(monthlyKg * price);
+  const waterL = dailyKg * 2;
+
+  return (
+    <div className="dlg-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="dlg-sheet" style={{ width: 'min(460px, 100%)' }}>
+        <div className="dlg-header">
+          <span>Калькулятор нормы корма</span>
+          <button className="icon-btn" onClick={onClose} aria-label="Закрыть"><X size={14} strokeWidth={2.75} /></button>
+        </div>
+        <div className="dlg-body">
+          <div className="calc-field">
+            <label className="calc-label">Тип птицы</label>
+            <div className="calc-seg-wrap">
+              {BIRD_TYPES.map(t => (
+                <button key={t.id} className={`calc-seg-btn flex1 ${t.id === birdType ? 'active' : ''}`} onClick={() => setBirdType(t.id)}>{t.label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="calc-field">
+            <label className="calc-label">Возраст</label>
+            <div className="calc-age-row">
+              <input className="calc-input" type="number" min={0} value={ageValue} onChange={e => setAgeValue(Math.max(0, parseInt(e.target.value, 10) || 0))} style={{ flex: 1 }} />
+              <div className="calc-seg-wrap">
+                <button className={`calc-seg-btn ${ageUnit === 'days' ? 'active' : ''}`} onClick={() => setAgeUnit('days')}>Дни</button>
+                <button className={`calc-seg-btn ${ageUnit === 'weeks' ? 'active' : ''}`} onClick={() => setAgeUnit('weeks')}>Недели</button>
+              </div>
+            </div>
+          </div>
+          <div className="calc-field">
+            <label className="calc-label">Количество голов</label>
+            <input className="calc-input" type="number" min={0} value={heads} onChange={e => setHeads(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+          </div>
+          <div className="calc-field">
+            <label className="calc-label">Цена корма за кг, ₸ (необязательно)</label>
+            <input className="calc-input" type="number" min={0} placeholder="Например, 250" value={price || ''} onChange={e => setPrice(Math.max(0, parseFloat(e.target.value) || 0))} />
+          </div>
+
+          <div className="calc-result">
+            <div className="calc-result-label">Результат</div>
+            <div className="calc-result-big">{range.min}–{range.max} г</div>
+            <div className="calc-result-sub">на голову в сутки</div>
+            <div className="calc-hr" />
+            <div className="calc-result-mid">{fmtRu(dailyKg)} кг</div>
+            <div className="calc-result-sub">кг/сутки на всё стадо</div>
+            <div className="calc-result-mid">{Math.round(monthlyKg)} кг</div>
+            <div className="calc-result-sub">кг в месяц</div>
+            {price > 0 && (
+              <>
+                <div className="calc-result-mid">{monthlyCost.toLocaleString('ru-RU')} ₸</div>
+                <div className="calc-result-sub">в месяц на корм</div>
+              </>
+            )}
+          </div>
+
+          <div className="calc-water-card">
+            <div className="calc-water-title">💧 {fmtRu(waterL)} л</div>
+            <div className="calc-result-sub">Ориентировочный расход воды в сутки</div>
+          </div>
+        </div>
+        <div className="dlg-actions">
+          <button className="sb-new" style={{ width: 'auto', padding: '10px 20px' }} onClick={onClose}>Готово</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function renderMarkdown(text: string) {
   const lines = text.split('\n');
   const result: React.ReactNode[] = [];
@@ -210,10 +345,9 @@ export default function NauryzAI() {
   const [pendingVideo, setPendingVideo] = useState<{ frames: ImageData[]; preview: string } | null>(null);
   const [isExtractingVideo, setIsExtractingVideo] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [showCalc, setShowCalc] = useState(false);
-  const [calcAnimal, setCalcAnimal] = useState(0);
-  const [calcCount, setCalcCount] = useState('');
-  const [calcDays, setCalcDays] = useState('7');
+  const [showFeedCalc, setShowFeedCalc] = useState(false);
+  const [calcAgeId, setCalcAgeId] = useState('d1');
+  const [calcHeads, setCalcHeads] = useState(50);
   const [searchMode, setSearchMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -366,9 +500,22 @@ export default function NauryzAI() {
     } finally { setIsLoading(false); setAbortController(null); }
   }, [input, pendingImage, pendingVideo, messages, searchMode, activeChatId]);
 
-  const calcRes = () => {
-    const count = parseInt(calcCount) || 0; const days = parseInt(calcDays) || 1; const a = FEED_ANIMALS[calcAnimal];
-    return { kg: ((count * a.perHead * days) / 1000).toFixed(1), perDay: ((count * a.perHead) / 1000).toFixed(1), name: a.label };
+  // "Норма корма для бройлеров" — живой калькулятор в чате, а не запрос к API
+  // (design_handoff README: "implement as real client-side state bound to number inputs").
+  const askQuickQuestion = (s: { id: string; text: string }) => {
+    if (s.id !== 'feed') { sendMessage(s.text); return; }
+    let chatId = activeChatId;
+    if (!chatId) {
+      const id = Date.now().toString();
+      setChats(prev => [...prev, { id, title: s.text, messages: [], createdAt: new Date() }]);
+      setActiveChatId(id); chatId = id;
+    }
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: s.text, timestamp: new Date() };
+    const calcMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: '', isCalcCard: true, timestamp: new Date() };
+    const newMsgs = [...messages, userMsg, calcMsg];
+    setMessages(newMsgs);
+    if (messages.length === 0) setChats(prev => prev.map(c => c.id === chatId ? { ...c, title: s.text } : c));
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: newMsgs } : c));
   };
 
   const isEmpty = messages.length === 0;
@@ -449,7 +596,7 @@ export default function NauryzAI() {
             <button className={`pill-btn ${searchMode ? 'on' : ''}`} onClick={() => setSearchMode(!searchMode)}>
               <Globe size={14} strokeWidth={2.75} />Поиск {searchMode ? 'ВКЛ' : 'ВЫКЛ'}
             </button>
-            <button className="pill-btn" onClick={() => setShowCalc(true)}><Calculator size={14} strokeWidth={2.75} />Калькулятор</button>
+            <button className="pill-btn" onClick={() => setShowFeedCalc(true)}><Calculator size={14} strokeWidth={2.75} />Калькулятор нормы корма</button>
           </div>
 
           <div className="content">
@@ -460,7 +607,7 @@ export default function NauryzAI() {
                 <p className="empty-sub">Задай вопрос о птицеводстве или прикрепи фото курицы/птичника — поставлю диагноз и подскажу решение</p>
                 <div className="quick-grid">
                   {SUGGESTIONS.map((s, i) => (
-                    <button key={s.text} className="quick-card" style={{ animationDelay: `${i * 0.06}s` }} onClick={() => sendMessage(s.text)}>
+                    <button key={s.id} className="quick-card" style={{ animationDelay: `${i * 0.06}s` }} onClick={() => askQuickQuestion(s)}>
                       <span className="quick-emoji">{s.emoji}</span>
                       <span className="quick-text">{s.text}</span>
                     </button>
@@ -486,6 +633,8 @@ export default function NauryzAI() {
                           </>
                         ) : msg.diagnosis ? (
                           <DiagnosisCard diagnosis={msg.diagnosis} onOpen={() => setActiveDiagnosis(msg.diagnosis!)} />
+                        ) : msg.isCalcCard ? (
+                          <InlineCalcCard ageId={calcAgeId} heads={calcHeads} onAgeChange={setCalcAgeId} onHeadsChange={setCalcHeads} />
                         ) : msg.content === '' && isLoading && msg.id === lastMsg?.id ? (
                           isAnalyzingPhoto ? (
                             <div className="analyzing-card">
@@ -534,26 +683,7 @@ export default function NauryzAI() {
         </div>
       </div>
 
-      {/* CALC MODAL — не редизайнен на этом этапе (отдельный шаг по плану) */}
-      {showCalc && (
-        <div className="overlay" onClick={e => e.target === e.currentTarget && setShowCalc(false)}>
-          <div className="modal">
-            <h2>🧮 Калькулятор корма</h2>
-            <div className="field"><label>Вид птицы</label>
-              <select value={calcAnimal} onChange={e => setCalcAnimal(Number(e.target.value))}>
-                {FEED_ANIMALS.map((a, i) => <option key={i} value={i}>{a.label}</option>)}
-              </select>
-            </div>
-            <div className="field"><label>Количество голов</label><input type="number" placeholder="100" value={calcCount} onChange={e => setCalcCount(e.target.value)} min="1" /></div>
-            <div className="field"><label>Период (дней)</label><input type="number" value={calcDays} onChange={e => setCalcDays(e.target.value)} min="1" /></div>
-            {calcCount && <div className="calc-res"><div className="calc-big">{calcRes().kg} кг</div><div className="calc-sub">{calcRes().name} · {calcCount} гол · {calcDays} дн · {calcRes().perDay} кг/день</div></div>}
-            <div className="mbtns">
-              <button className="msec" onClick={() => setShowCalc(false)}>Закрыть</button>
-              <button className="mprim" disabled={!calcCount} onClick={() => { setShowCalc(false); sendMessage(`Рацион: ${calcRes().name} ${calcCount} голов ${calcDays} дней = ${calcRes().kg} кг. Дай состав рациона.`); }}>Спросить AI ↗</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showFeedCalc && <FeedCalcModal onClose={() => setShowFeedCalc(false)} />}
 
       {activeDiagnosis && <DiagnosisModal diagnosis={activeDiagnosis} onClose={() => setActiveDiagnosis(null)} />}
     </>
