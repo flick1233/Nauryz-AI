@@ -44,7 +44,7 @@
 
 /* MAIN */
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.topbar { display: flex; align-items: center; gap: 10px; padding: 16px 32px; flex-shrink: 0; border-bottom: 1px solid var(--color-divider); }
+.topbar { display: flex; align-items: center; gap: 10px; padding: 16px 32px; flex-shrink: 0; border-bottom: 1px solid var(--color-divider); overflow-x: auto; }
 .icon-btn { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--color-divider); background: transparent; color: var(--color-text); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .18s, border-color .18s; flex-shrink: 0; }
 .icon-btn:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .icon-btn.on { background: var(--color-accent-100); border-color: var(--color-accent-300); color: var(--color-accent-800); }
@@ -123,7 +123,9 @@
 .md-table tr:last-child td { border-bottom: none; }
 
 /* COMPOSER (persistent, shared between empty/chat states) */
-.composer-wrap { flex-shrink: 0; padding: 16px 24px 22px; display: flex; justify-content: center; }
+/* padding-bottom учитывает iOS safe area (домашний индикатор Safari) — без
+   viewport-fit=cover в meta[name=viewport] env() всегда вернёт 0, см. layout.tsx. */
+.composer-wrap { flex-shrink: 0; padding: 16px 24px calc(22px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; }
 .composer { width: 100%; max-width: 680px; display: flex; align-items: center; gap: 8px; background: var(--color-surface); border-radius: 999px; padding: 6px 6px 6px 18px; }
 .composer textarea { flex: 1; background: transparent; border: none; padding: 8px 0; font-size: 14.5px; font-family: var(--font-body); color: var(--color-text); resize: none; outline: none; line-height: 1.4; min-height: 20px; max-height: 120px; }
 .composer textarea::placeholder { color: var(--color-neutral-500); }
@@ -230,7 +232,16 @@
   .bubble-col { max-width: 88%; }
   .feed-inner { padding: 0 14px; gap: 12px; }
   .empty { padding: 24px 16px; }
-  .topbar { padding: 10px 14px; }
-  .composer-wrap { padding: 8px 14px 14px; }
+  .topbar { padding: 10px 14px; gap: 6px; }
+  .composer-wrap { padding: 8px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .u-photo-frame img, .u-photo-frame video { width: 150px; }
+}
+
+/* Узкие экраны (iPhone SE/mini/стандарт — 375-390px): "☰ / Поиск ВЫКЛ / Калькулятор
+   нормы корма / Тема / Language" не помещаются в один ряд с текстом. Прячем подписи
+   pill-кнопок, оставляя иконки (+ title-атрибут как подсказка) вместо переноса строки
+   или обрезания текста за пределы экрана. */
+@media (max-width: 420px) {
+  .pill-btn-label { display: none; }
+  .pill-btn { padding: 8px 10px; }
 }

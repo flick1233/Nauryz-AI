@@ -769,10 +769,12 @@ export default function NauryzAI() {
             {!sidebarOpen && <button className="icon-btn" onClick={() => setSidebarOpen(true)} aria-label={ui.ariaShowHistory}><Menu size={16} strokeWidth={2.75} /></button>}
             <div className="topbar-title">{isEmpty ? ui.newChatTitle : (messages[0]?.content || ui.chatFallback)}</div>
             <div className="topbar-spacer" />
-            <button className={`pill-btn ${searchMode ? 'on' : ''}`} onClick={() => setSearchMode(!searchMode)}>
-              <Globe size={14} strokeWidth={2.75} />{searchMode ? ui.searchOn : ui.searchOff}
+            <button className={`pill-btn ${searchMode ? 'on' : ''}`} onClick={() => setSearchMode(!searchMode)} title={searchMode ? ui.searchOn : ui.searchOff}>
+              <Globe size={14} strokeWidth={2.75} /><span className="pill-btn-label">{searchMode ? ui.searchOn : ui.searchOff}</span>
             </button>
-            <button className="pill-btn" onClick={() => setShowFeedCalc(true)}><Calculator size={14} strokeWidth={2.75} />{ui.feedCalcBtn}</button>
+            <button className="pill-btn" onClick={() => setShowFeedCalc(true)} title={ui.feedCalcBtn}>
+              <Calculator size={14} strokeWidth={2.75} /><span className="pill-btn-label">{ui.feedCalcBtn}</span>
+            </button>
             <button className="icon-btn" onClick={() => setDarkMode(d => !d)} aria-label={ui.ariaTheme}>
               {darkMode ? <Moon size={16} strokeWidth={2.75} /> : <Sun size={16} strokeWidth={2.75} />}
             </button>
