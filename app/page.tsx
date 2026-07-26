@@ -1,14 +1,31 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Menu, Plus, Camera, Mic, Send, X, Square, Globe, Calculator } from 'lucide-react';
+import './nauryz.css';
 
 interface ImageData { data: string; mediaType: string; preview: string }
+type Severity = 'low' | 'medium' | 'high' | 'critical';
+interface Cause { name: string; pct: number; severity: Severity }
+interface DiagnosisData {
+  inspection: string; symptoms: string[]; causes: Cause[];
+  homeCare: string[]; recommendations: string[]; needsVet: boolean;
+}
 interface Message {
   id: string; role: 'user' | 'assistant'; content: string;
   image?: ImageData; frames?: ImageData[]; videoPreview?: string;
+  diagnosis?: DiagnosisData;
   costUsd?: number; timestamp: Date;
 }
 interface Chat { id: string; title: string; messages: Message[]; createdAt: Date; }
+
+// design_handoff_nauryz_ai/README.md — Severity colors (diagnosis causes)
+const SEVERITY_STYLE: Record<Severity, { bar: string; text: string; bg: string }> = {
+  high: { bar: 'var(--color-accent-500)', text: 'var(--color-accent-800)', bg: 'var(--color-accent-100)' },
+  critical: { bar: 'var(--color-accent-700)', text: 'var(--color-accent-900)', bg: 'var(--color-accent-200)' },
+  medium: { bar: 'var(--color-accent-2-500)', text: 'var(--color-accent-2-800)', bg: 'var(--color-accent-2-100)' },
+  low: { bar: 'var(--color-neutral-400)', text: 'var(--color-neutral-700)', bg: 'var(--color-neutral-100)' },
+};
 
 const SUGGESTIONS = [
   { emoji: '🐔', text: 'Курица хромает, что делать?' },
@@ -28,6 +45,108 @@ const FEED_ANIMALS = [
   { label: 'Утка 🦆', perHead: 200 },
   { label: 'Гусь 🪿', perHead: 400 },
 ];
+
+// Логотип-росток из design-handoff (Nauryz AI - Web.dc.html) — воспроизведён как есть, не заменён на Lucide.
+function Logo({ size = 20, strokeWidth = 2.5 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 34 34">
+      <path d="M17 30 C17 22 17 16 17 8" stroke="var(--color-accent-700)" strokeWidth={strokeWidth} strokeLinecap="round" fill="none" />
+      <path d="M17 14 C10 14 6 9 7 3 C13 3 18 7 17 14Z" fill="var(--color-accent-2-500)" />
+      <path d="M17 18 C24 18 28 13 27 6 C21 6 16 11 17 18Z" fill="var(--color-accent-500)" />
+    </svg>
+  );
+}
+
+function DiagnosisCard({ diagnosis, onOpen }: { diagnosis: DiagnosisData; onOpen: () => void }) {
+  const topCauses = diagnosis.causes.slice(0, 2);
+  return (
+    <div className="diag-card">
+      <span className="tag tag-accent">Осмотр</span>
+      <div className="diag-text">{diagnosis.inspection}</div>
+      <span className="tag tag-accent-2">Симптомы</span>
+      <ul className="diag-symptoms">{diagnosis.symptoms.map((s, i) => <li key={i}>{s}</li>)}</ul>
+      {topCauses.length > 0 && (
+        <>
+          <span className="tag tag-neutral">Вероятные причины</span>
+          <div className="diag-causes">
+            {topCauses.map((c, i) => (
+              <div key={i}>
+                <div className="diag-cause-row"><span>{c.name}</span><span className="diag-cause-pct">{c.pct}%</span></div>
+                <div className="diag-bar-track"><div className="diag-bar-fill" style={{ width: `${c.pct}%`, background: SEVERITY_STYLE[c.severity].bar }} /></div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      <button className="pill-btn" style={{ marginTop: 2, alignSelf: 'flex-start' }} onClick={onOpen}>Подробный разбор →</button>
+    </div>
+  );
+}
+
+function DiagnosisModal({ diagnosis, onClose }: { diagnosis: DiagnosisData; onClose: () => void }) {
+  return (
+    <div className="dlg-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="dlg-sheet">
+        <div className="dlg-header">
+          <span>Результат диагностики</span>
+          <button className="icon-btn" onClick={onClose} aria-label="Закрыть"><X size={14} strokeWidth={2.75} /></button>
+        </div>
+        <div className="dlg-body">
+          <div className="dlg-inspection">
+            <span className="tag tag-accent">Осмотр</span>
+            <div className="dlg-inspection-text">{diagnosis.inspection}</div>
+          </div>
+
+          <div>
+            <h4 className="dlg-h4">Симптомы</h4>
+            <div className="dlg-symptom-chips">{diagnosis.symptoms.map((s, i) => <span key={i} className="tag tag-neutral">{s}</span>)}</div>
+          </div>
+
+          {diagnosis.causes.length > 0 && (
+            <div>
+              <h4 className="dlg-h4">Возможные причины</h4>
+              <div className="dlg-causes">
+                {diagnosis.causes.map((c, i) => {
+                  const sev = SEVERITY_STYLE[c.severity];
+                  return (
+                    <div key={i} className="dlg-cause-card" style={{ background: sev.bg }}>
+                      <div className="dlg-cause-row">
+                        <span style={{ color: sev.text }}>{c.name}</span>
+                        <span style={{ color: sev.text }} className="dlg-cause-pct-big">{c.pct}%</span>
+                      </div>
+                      <div className="diag-bar-track" style={{ background: 'rgba(255,255,255,0.6)' }}><div className="diag-bar-fill" style={{ width: `${c.pct}%`, background: sev.bar }} /></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {diagnosis.homeCare.length > 0 && (
+            <div>
+              <h4 className="dlg-h4">🏠 Лечение в домашних условиях</h4>
+              <div className="dlg-numbered">
+                {diagnosis.homeCare.map((t, i) => <div key={i} className="dlg-numbered-row"><span className="dlg-num dlg-num-care">{i + 1}</span><span>{t}</span></div>)}
+              </div>
+            </div>
+          )}
+
+          {diagnosis.recommendations.length > 0 && (
+            <div>
+              <h4 className="dlg-h4">Когда обращаться к ветеринару</h4>
+              <div className="dlg-numbered">
+                {diagnosis.recommendations.map((t, i) => <div key={i} className="dlg-numbered-row"><span className="dlg-num dlg-num-vet">{i + 1}</span><span>{t}</span></div>)}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="dlg-actions">
+          <button className="sb-new" style={{ width: 'auto', padding: '10px 20px' }} onClick={onClose}>Понятно, сохранить в историю</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function renderMarkdown(text: string) {
   const lines = text.split('\n');
@@ -99,6 +218,7 @@ export default function NauryzAI() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [sessionCost, setSessionCost] = useState(0);
+  const [activeDiagnosis, setActiveDiagnosis] = useState<DiagnosisData | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -226,12 +346,21 @@ export default function NauryzAI() {
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
         text2 += dec.decode(value, { stream: true });
-        const mi = text2.indexOf('\n___COST___');
-        setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: mi >= 0 ? text2.slice(0, mi) : text2 } : m));
+        const di = text2.indexOf('\n___DIAGNOSIS___');
+        const ci = text2.indexOf('\n___COST___');
+        const cut = di >= 0 ? di : ci;
+        setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: cut >= 0 ? text2.slice(0, cut) : text2 } : m));
       }
-      const mi = text2.indexOf('\n___COST___');
-      if (mi >= 0) { try { const { costUsd } = JSON.parse(text2.slice(mi + '\n___COST___'.length)); setMessages(prev => prev.map(m => m.id === aid ? { ...m, costUsd } : m)); setSessionCost(p => p + costUsd); } catch {} }
-      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...newMsgs, { id: aid, role: 'assistant' as const, content: text2.split('\n___COST___')[0], timestamp: new Date() }] } : c));
+      const di = text2.indexOf('\n___DIAGNOSIS___');
+      const ci = text2.indexOf('\n___COST___');
+      let diagnosis: DiagnosisData | undefined;
+      if (di >= 0) {
+        try { diagnosis = JSON.parse(text2.slice(di + '\n___DIAGNOSIS___'.length, ci >= 0 ? ci : undefined)); } catch {}
+      }
+      const plainContent = text2.slice(0, di >= 0 ? di : (ci >= 0 ? ci : undefined));
+      if (ci >= 0) { try { const { costUsd } = JSON.parse(text2.slice(ci + '\n___COST___'.length)); setMessages(prev => prev.map(m => m.id === aid ? { ...m, costUsd } : m)); setSessionCost(p => p + costUsd); } catch {} }
+      setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: plainContent, diagnosis } : m));
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...newMsgs, { id: aid, role: 'assistant' as const, content: plainContent, diagnosis, timestamp: new Date() }] } : c));
     } catch (err: any) {
       if (err.name !== 'AbortError') setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '❌ Ошибка. Проверьте API ключ.', timestamp: new Date() }]);
     } finally { setIsLoading(false); setAbortController(null); }
@@ -242,371 +371,170 @@ export default function NauryzAI() {
     return { kg: ((count * a.perHead * days) / 1000).toFixed(1), perDay: ((count * a.perHead) / 1000).toFixed(1), name: a.label };
   };
 
+  const isEmpty = messages.length === 0;
+  const lastMsg = messages[messages.length - 1];
+  // До появления пустого assistant-плейсхолдера источник — последнее user-сообщение;
+  // после того как стрим начал писать в него (плейсхолдер уже в messages) — предпоследнее.
+  const pendingSourceMsg = !isLoading ? undefined
+    : lastMsg?.role === 'user' ? lastMsg
+    : lastMsg?.role === 'assistant' && lastMsg.content === '' ? messages[messages.length - 2]
+    : undefined;
+  const isAwaitingReply = isLoading && lastMsg?.role === 'user';
+  const isAnalyzingPhoto = !!(pendingSourceMsg?.image || pendingSourceMsg?.frames);
+
+  const Composer = (
+    <div className="composer-wrap">
+      <div className="composer">
+        <textarea
+          ref={textareaRef} value={input} rows={1}
+          onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+          placeholder="Опиши проблему или задай вопрос…"
+        />
+        <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleFile} />
+        <button className="c-btn c-btn-photo" onClick={() => fileRef.current?.click()}><Camera size={15} strokeWidth={2.75} />Фото</button>
+        <button className={`c-btn c-btn-voice ${isRecording ? 'rec' : ''}`} onClick={isRecording ? () => { recognitionRef.current?.stop(); setIsRecording(false); } : startVoice}>
+          <Mic size={15} strokeWidth={2.75} />{isRecording ? 'Запись…' : 'Голос'}
+        </button>
+        {isLoading
+          ? <button className="c-send stop" onClick={() => { abortController?.abort(); setIsLoading(false); }} aria-label="Остановить"><Square size={15} strokeWidth={2.75} fill="currentColor" /></button>
+          : <button className="c-send" onClick={() => sendMessage()} disabled={!input.trim() && !pendingImage && !pendingVideo} aria-label="Отправить"><Send size={16} strokeWidth={2.75} /></button>}
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <style>{`
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { height: 100%; overflow: hidden; }
-        body { font-family: -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif; background: #f0f4ee; color: #1a2e14; }
-
-        .layout { display: flex; height: 100dvh; }
-
-        /* SIDEBAR — белая карточка */
-        .sidebar {
-          width: 220px; min-width: 220px; background: #fff;
-          border-right: 1px solid #e0e8d8; display: flex; flex-direction: column;
-          transition: width .22s, min-width .22s; overflow: hidden;
-        }
-        .sidebar.closed { width: 0; min-width: 0; }
-
-        .sb-top { padding: 20px 16px 12px; }
-        .sb-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-        .sb-brand-icon { font-size: 28px; line-height: 1; }
-        .sb-brand-name { font-size: 17px; font-weight: 700; color: #2d5a1e; letter-spacing: -.4px; }
-        .sb-brand-sub { font-size: 10px; color: #8aaa7a; margin-top: 1px; }
-
-        .sb-nav { display: flex; flex-direction: column; gap: 2px; }
-        .sb-nav-item {
-          display: flex; align-items: center; gap: 10px; padding: 9px 12px;
-          border-radius: 10px; cursor: pointer; font-size: 13px; color: #5a7a50;
-          transition: all .15s; border: none; background: none; width: 100%; text-align: left;
-          white-space: nowrap;
-        }
-        .sb-nav-item:hover { background: #f0f4ee; color: #2d5a1e; }
-        .sb-nav-item.active { background: #e8f5e0; color: #2d5a1e; font-weight: 600; }
-        .sb-nav-icon { font-size: 16px; flex-shrink: 0; }
-        .sb-new { background: #3d7a2e !important; color: #fff !important; font-weight: 600 !important; margin-bottom: 8px; }
-        .sb-new:hover { background: #4a8f38 !important; }
-
-        .sb-divider { height: 1px; background: #e8f0e0; margin: 8px 16px; }
-
-        .sb-chats { flex: 1; overflow-y: auto; padding: 4px 8px; }
-        .sb-chats::-webkit-scrollbar { width: 3px; }
-        .sb-chats::-webkit-scrollbar-thumb { background: #c8dbb8; border-radius: 3px; }
-        .chat-row {
-          display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-          border-radius: 9px; cursor: pointer; font-size: 12px; color: #7a9a6a;
-          transition: all .15s; white-space: nowrap;
-        }
-        .chat-row:hover { background: #f0f4ee; color: #3d6a2e; }
-        .chat-row.act { background: #e8f5e0; color: #2d5a1e; font-weight: 500; }
-        .chat-row-title { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-        .chat-del { opacity: 0; background: none; border: none; color: #aac8a0; cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 4px; flex-shrink: 0; }
-        .chat-row:hover .chat-del { opacity: 1; }
-        .chat-del:hover { color: #e57373; }
-
-        .sb-footer { padding: 12px 16px; border-top: 1px solid #e0e8d8; }
-        .sb-profile { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #7a9a6a; }
-        .sb-avatar { width: 28px; height: 28px; border-radius: 50%; background: #e8f5e0; display: flex; align-items: center; justify-content: center; font-size: 14px; }
-
-        /* MAIN */
-        .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #f0f4ee; }
-
-        .topbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e0e8d8; }
-        .menu-btn { background: none; border: none; font-size: 18px; color: #7a9a6a; cursor: pointer; padding: 4px; border-radius: 7px; transition: all .15s; line-height: 1; }
-        .menu-btn:hover { background: #f0f4ee; color: #2d5a1e; }
-        .topbar-title { font-size: 15px; font-weight: 600; color: #2d5a1e; }
-        .topbar-right { margin-left: auto; display: flex; gap: 6px; }
-        .top-btn { display: flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 20px; font-size: 12px; border: 1px solid #d0e0c0; background: #fff; color: #5a7a50; cursor: pointer; transition: all .15s; font-weight: 500; }
-        .top-btn:hover { background: #f0f4ee; border-color: #b0c8a0; }
-        .top-btn.on { background: #e8f5e0; border-color: #7ab86a; color: #2d5a1e; }
-        .top-btn-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-
-        /* MESSAGES */
-        .msgs { flex: 1; overflow-y: auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; }
-        .msgs::-webkit-scrollbar { width: 4px; }
-        .msgs::-webkit-scrollbar-thumb { background: #c8dbb8; border-radius: 4px; }
-
-        /* WELCOME */
-        .welcome { margin: auto; max-width: 600px; width: 100%; text-align: center; padding: 20px 16px; }
-        .w-emoji { font-size: 64px; margin-bottom: 16px; line-height: 1; display: block; }
-        .w-title { font-size: 32px; font-weight: 700; color: #2d5a1e; margin-bottom: 8px; letter-spacing: -.8px; }
-        .w-sub { font-size: 15px; color: #7a9a6a; margin-bottom: 28px; line-height: 1.6; }
-        .w-stats { display: flex; gap: 10px; justify-content: center; margin-bottom: 28px; }
-        .w-stat { background: #fff; border: 1px solid #e0e8d8; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-        .w-stat-n { font-size: 22px; font-weight: 700; color: #3d7a2e; }
-        .w-stat-l { font-size: 11px; color: #9ab88a; }
-
-        /* INPUT CARD — центральный как на референсе */
-        .input-card { background: #fff; border-radius: 18px; border: 1px solid #e0e8d8; padding: 14px 16px; box-shadow: 0 4px 24px rgba(60,100,40,.08); }
-        .input-card textarea {
-          width: 100%; background: none; border: none; color: #1a2e14; font-size: 15px;
-          resize: none; outline: none; font-family: inherit; line-height: 1.5;
-          min-height: 36px; max-height: 120px; display: block; margin-bottom: 10px;
-        }
-        .input-card textarea::placeholder { color: #aac8a0; }
-        .input-card-bottom { display: flex; align-items: center; gap: 8px; }
-        .ic-btn {
-          display: flex; align-items: center; gap: 5px; padding: 6px 12px;
-          border-radius: 20px; font-size: 12px; border: 1px solid #e0e8d8;
-          background: #fff; color: #5a7a50; cursor: pointer; transition: all .15s;
-          white-space: nowrap; font-weight: 500;
-        }
-        .ic-btn:hover { background: #f0f4ee; border-color: #b0c8a0; }
-        .ic-btn.on { background: #e8f5e0; border-color: #7ab86a; color: #2d5a1e; }
-        .ic-btn.rec { border-color: #f4a0a0; color: #d04040; animation: pulse 1s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-        .ic-send {
-          margin-left: auto; width: 38px; height: 38px; border-radius: 50%;
-          background: #3d7a2e; border: none; color: #fff; cursor: pointer;
-          font-size: 16px; display: flex; align-items: center; justify-content: center;
-          transition: background .15s; flex-shrink: 0;
-        }
-        .ic-send:hover { background: #4a8f38; }
-        .ic-send:disabled { background: #c8dbb8; cursor: default; }
-        .ic-send.stop { background: #c03030; }
-
-        /* SUGGESTIONS GRID */
-        .sug-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
-        .sug-card {
-          background: #fff; border: 1px solid #e8f0e0; border-radius: 14px;
-          padding: 11px 14px; cursor: pointer; text-align: left;
-          display: flex; align-items: center; gap: 10px;
-          font-size: 13px; color: #4a6a3a; transition: all .15s;
-          font-weight: 500;
-        }
-        .sug-card:hover { border-color: #7ab86a; background: #f4faf0; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(60,100,40,.08); }
-        .sug-emoji { font-size: 20px; flex-shrink: 0; }
-
-        /* MESSAGES */
-        .msg { display: flex; gap: 10px; }
-        .msg.user { flex-direction: row-reverse; }
-        .av { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; margin-top: 2px; }
-        .av.ai { background: #e8f5e0; border: 1px solid #c8e0b8; }
-        .av.user { background: #fff; border: 1px solid #e0e8d8; }
-        .bwrap { max-width: 76%; display: flex; flex-direction: column; }
-        .msg.user .bwrap { align-items: flex-end; }
-        .bubble { padding: 12px 16px; border-radius: 18px; font-size: 14px; line-height: 1.65; word-break: break-word; }
-        .bubble.ai { background: #fff; border: 1px solid #e0e8d8; border-radius: 18px 18px 18px 5px; color: #1a2e14; }
-        .bubble.user { background: #3d7a2e; color: #fff; border-radius: 18px 18px 5px 18px; }
-        .bubble img, .bubble video { max-width: 100%; border-radius: 10px; margin-bottom: 8px; display: block; }
-        .bmeta { font-size: 10px; color: #aac8a0; margin-top: 4px; }
-        .msg.user .bmeta { text-align: right; }
-
-        /* Typing */
-        .typing { display: flex; gap: 5px; align-items: center; padding: 4px 0; }
-        .typing span { width: 7px; height: 7px; border-radius: 50%; background: #7ab86a; animation: bounce 1.2s infinite; }
-        .typing span:nth-child(2) { animation-delay: .2s; } .typing span:nth-child(3) { animation-delay: .4s; }
-        @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
-
-        /* Markdown */
-        .md-h1 { font-size: 18px; font-weight: 700; color: #2d5a1e; margin: 10px 0 7px; padding-bottom: 6px; border-bottom: 1px solid #e0e8d8; }
-        .md-h2 { font-size: 15px; font-weight: 600; color: #3d6a2e; margin: 9px 0 5px; }
-        .md-h3 { font-size: 14px; font-weight: 600; color: #4a7a38; margin: 7px 0 4px; }
-        .md-p { margin: 3px 0; }
-        .md-hr { border: none; border-top: 1px solid #e0e8d8; margin: 10px 0; }
-        .md-ul, .md-ol { padding-left: 18px; margin: 4px 0; }
-        .md-ul li, .md-ol li { margin: 2px 0; }
-        .md-code { background: #f4faf0; border: 1px solid #d0e0c0; border-radius: 8px; padding: 10px 14px; font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; overflow-x: auto; margin: 6px 0; color: #3d6a2e; }
-        .md-ic { background: #f4faf0; border: 1px solid #d0e0c0; border-radius: 4px; padding: 1px 5px; font-family: 'SF Mono', monospace; font-size: 12px; color: #5a8a3e; }
-        .md-sp { height: 4px; }
-        .md-table-wrap { overflow-x: auto; margin: 7px 0; border-radius: 10px; border: 1px solid #e0e8d8; }
-        .md-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .md-table th { background: #f4faf0; color: #3d6a2e; padding: 8px 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e0e8d8; }
-        .md-table td { padding: 7px 12px; border-bottom: 1px solid #f0f4ee; color: #4a6a3a; }
-        .md-table tr:last-child td { border-bottom: none; }
-        .md-table tr:hover td { background: #f8fcf5; }
-
-        /* Preview */
-        .preview { margin: 0 20px 8px; background: #fff; border: 1px solid #e0e8d8; border-radius: 12px; padding: 9px 14px; display: flex; align-items: center; gap: 10px; }
-        .preview img, .preview video { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
-        .preview-label { flex: 1; font-size: 12px; color: #7a9a6a; }
-        .preview-rm { background: none; border: none; color: #aac8a0; cursor: pointer; font-size: 16px; }
-
-        /* INPUT AREA at bottom when chatting */
-        .input-area { padding: 8px 20px 16px; }
-
-        /* Modal */
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; backdrop-filter: blur(4px); }
-        .modal { background: #fff; border-radius: 20px; padding: 24px; width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(60,100,40,.15); }
-        .modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 18px; color: #2d5a1e; }
-        .field { margin-bottom: 12px; }
-        .field label { display: block; font-size: 11px; color: #9ab88a; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
-        .field select, .field input { width: 100%; background: #f4faf0; border: 1px solid #d0e0c0; color: #1a2e14; border-radius: 10px; padding: 9px 12px; font-size: 14px; outline: none; font-family: inherit; }
-        .field select:focus, .field input:focus { border-color: #7ab86a; }
-        .calc-res { background: #f4faf0; border: 1px solid #d0e0c0; border-radius: 12px; padding: 16px; margin: 14px 0; text-align: center; }
-        .calc-big { font-size: 32px; font-weight: 700; color: #3d7a2e; }
-        .calc-sub { font-size: 12px; color: #9ab88a; margin-top: 4px; }
-        .mbtns { display: flex; gap: 8px; margin-top: 6px; }
-        .mbtns button { flex: 1; padding: 10px; border-radius: 10px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; }
-        .mprim { background: #3d7a2e; color: #fff; } .mprim:hover { background: #4a8f38; } .mprim:disabled { background: #c8dbb8; cursor: default; }
-        .msec { background: #f4faf0; color: #5a7a50; border: 1px solid #d0e0c0 !important; }
-
-        /* Mobile */
-        .sb-overlay { display: none; }
-        @media (max-width: 767px) {
-          .sidebar { position: fixed; z-index: 100; height: 100dvh; top: 0; left: 0; box-shadow: 8px 0 32px rgba(0,0,0,.12); }
-          .sidebar.closed { width: 0; min-width: 0; }
-          .sb-overlay { display: block; position: fixed; inset: 0; z-index: 99; background: rgba(0,0,0,.3); }
-          .sug-grid { grid-template-columns: 1fr; }
-          .bwrap { max-width: 88%; }
-          .msgs { padding: 16px 14px; }
-          .welcome { padding: 16px 12px; }
-          .w-title { font-size: 24px; }
-          .w-emoji { font-size: 48px; }
-          .w-stats { gap: 7px; }
-          .w-stat { padding: 9px 12px; }
-          .topbar { padding: 10px 14px; }
-          .input-area { padding: 6px 14px 14px; }
-        }
-      `}</style>
-
       <div className="layout">
         {sidebarOpen && <div className="sb-overlay" onClick={() => setSidebarOpen(false)} />}
 
         {/* SIDEBAR */}
         <div className={`sidebar ${sidebarOpen ? '' : 'closed'}`}>
-          <div className="sb-top">
-            <div className="sb-brand">
-              <span className="sb-brand-icon">🌾</span>
-              <div>
-                <div className="sb-brand-name">Nauryz AI</div>
-                <div className="sb-brand-sub">Агро-ассистент</div>
-              </div>
+          <div className="sb-brand">
+            <div className="sb-brand-icon"><Logo size={19} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="sb-brand-name">Nauryz AI</div>
+              <div className="sb-brand-sub">Агро-ассистент</div>
             </div>
-            <div className="sb-nav">
-              <button className="sb-nav-item sb-new" onClick={createNewChat}>
-                <span className="sb-nav-icon">✏️</span> Новый чат
-              </button>
-            </div>
+            <button className="sb-hide-btn" onClick={() => setSidebarOpen(false)} aria-label="Скрыть историю"><Menu size={16} strokeWidth={2.75} /></button>
           </div>
 
-          <div className="sb-divider" />
+          <button className="sb-new" onClick={createNewChat}><Plus size={14} strokeWidth={2.75} />Новый чат</button>
 
+          <div className="sb-section-label">История</div>
           <div className="sb-chats">
-            {chats.length === 0 && <div style={{ padding: '12px 10px', fontSize: 11, color: '#b0c8a0', textAlign: 'center' }}>Нет чатов</div>}
+            {chats.length === 0 && <div style={{ padding: '12px 10px', fontSize: 11, color: 'var(--color-neutral-500)', textAlign: 'center' }}>Нет чатов</div>}
             {chats.slice().reverse().map(chat => (
               <div key={chat.id} className={`chat-row ${chat.id === activeChatId ? 'act' : ''}`} onClick={() => switchChat(chat.id)}>
-                <span>💬</span>
-                <span className="chat-row-title">{chat.title}</span>
-                <button className="chat-del" onClick={e => deleteChat(chat.id, e)}>✕</button>
+                <div className="chat-row-title">{chat.title}</div>
+                <div className="chat-row-snippet">{chat.messages[chat.messages.length - 1]?.content.slice(0, 40) || ''}</div>
+                <button className="chat-del" onClick={e => deleteChat(chat.id, e)} aria-label="Удалить чат"><X size={12} strokeWidth={2.75} /></button>
               </div>
             ))}
           </div>
 
           <div className="sb-footer">
-            <div className="sb-profile">
-              <div className="sb-avatar">👤</div>
-              <span>Фермер</span>
-              {sessionCost > 0 && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#aac8a0' }}>${sessionCost.toFixed(4)}</span>}
-            </div>
+            <div className="sb-avatar">Ф</div>
+            <span className="sb-footer-label">Фермер</span>
+            {sessionCost > 0 && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--color-neutral-500)' }}>${sessionCost.toFixed(4)}</span>}
           </div>
         </div>
 
         {/* MAIN */}
         <div className="main">
           <div className="topbar">
-            <button className="menu-btn" onClick={() => setSidebarOpen(p => !p)}>☰</button>
-            <span className="topbar-title">Nauryz AI 🌾</span>
-            <div className="topbar-right">
-              <button className={`top-btn ${searchMode ? 'on' : ''}`} onClick={() => setSearchMode(!searchMode)}>
-                <span className="top-btn-dot" />
-                🌐 Поиск {searchMode ? 'ВКЛ' : 'ВЫКЛ'}
-              </button>
-              <button className="top-btn" onClick={() => setShowCalc(true)}>🧮 Калькулятор</button>
-            </div>
+            {!sidebarOpen && <button className="icon-btn" onClick={() => setSidebarOpen(true)} aria-label="Показать историю"><Menu size={16} strokeWidth={2.75} /></button>}
+            <div className="topbar-title">{isEmpty ? 'Новый чат' : (messages[0]?.content || 'Чат')}</div>
+            <div className="topbar-spacer" />
+            <button className={`pill-btn ${searchMode ? 'on' : ''}`} onClick={() => setSearchMode(!searchMode)}>
+              <Globe size={14} strokeWidth={2.75} />Поиск {searchMode ? 'ВКЛ' : 'ВЫКЛ'}
+            </button>
+            <button className="pill-btn" onClick={() => setShowCalc(true)}><Calculator size={14} strokeWidth={2.75} />Калькулятор</button>
           </div>
 
-          <div className="msgs">
-            {messages.length === 0 ? (
-              <div className="welcome">
-                <span className="w-emoji">🌾</span>
-                <h1 className="w-title">Чем помочь?</h1>
-                <p className="w-sub">Задай вопрос о птицеводстве или прикрепи фото — поставлю диагноз</p>
-
-                <div className="w-stats">
-                  <div className="w-stat"><span className="w-stat-n">68</span><span className="w-stat-l">знаний</span></div>
-                  <div className="w-stat"><span className="w-stat-n">40+</span><span className="w-stat-l">болезней</span></div>
-                  <div className="w-stat"><span className="w-stat-n">📸</span><span className="w-stat-l">фото/видео</span></div>
-                  <div className="w-stat"><span className="w-stat-n">🇰🇿</span><span className="w-stat-l">Казахстан</span></div>
-                </div>
-
-                <div className="sug-grid">
-                  {SUGGESTIONS.map(s => (
-                    <button key={s.text} className="sug-card" onClick={() => sendMessage(s.text)}>
-                      <span className="sug-emoji">{s.emoji}</span>
-                      <span>{s.text}</span>
+          <div className="content">
+            {isEmpty ? (
+              <div className="empty">
+                <div className="empty-badge"><Logo size={34} strokeWidth={2.5} /></div>
+                <h2 className="empty-heading">Сәлем! Чем помочь?</h2>
+                <p className="empty-sub">Задай вопрос о птицеводстве или прикрепи фото курицы/птичника — поставлю диагноз и подскажу решение</p>
+                <div className="quick-grid">
+                  {SUGGESTIONS.map((s, i) => (
+                    <button key={s.text} className="quick-card" style={{ animationDelay: `${i * 0.06}s` }} onClick={() => sendMessage(s.text)}>
+                      <span className="quick-emoji">{s.emoji}</span>
+                      <span className="quick-text">{s.text}</span>
                     </button>
                   ))}
                 </div>
-
-                <div className="input-card">
-                  <textarea
-                    ref={textareaRef} value={input} rows={2}
-                    onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                    placeholder="Опиши проблему или задай вопрос..."
-                  />
-                  <div className="input-card-bottom">
-                    <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleFile} />
-                    <button className="ic-btn" onClick={() => fileRef.current?.click()}>📎 Фото</button>
-                    <button className={`ic-btn ${isRecording ? 'rec' : ''}`} onClick={isRecording ? () => { recognitionRef.current?.stop(); setIsRecording(false); } : startVoice}>
-                      {isRecording ? '🔴 Запись...' : '🎤 Голос'}
-                    </button>
-                    {isLoading
-                      ? <button className="ic-send stop" onClick={() => { abortController?.abort(); setIsLoading(false); }}>⏹</button>
-                      : <button className="ic-send" onClick={() => sendMessage()} disabled={!input.trim() && !pendingImage && !pendingVideo}>➤</button>}
-                  </div>
-                </div>
               </div>
             ) : (
-              messages.map(msg => (
-                <div key={msg.id} className={`msg ${msg.role}`}>
-                  <div className={`av ${msg.role}`}>{msg.role === 'assistant' ? '🌾' : '👤'}</div>
-                  <div className="bwrap">
-                    <div className={`bubble ${msg.role}`}>
-                      {msg.videoPreview && <video src={msg.videoPreview} controls />}
-                      {msg.image && !msg.videoPreview && <img src={msg.image.preview} alt="" />}
-                      {msg.role === 'assistant'
-                        ? (msg.content === '' && isLoading ? <div className="typing"><span /><span /><span /></div> : renderMarkdown(msg.content))
-                        : msg.content}
+              <div className="feed">
+                <div className="feed-inner">
+                  {messages.map(msg => (
+                    <div key={msg.id} className={`row ${msg.role}`}>
+                      {msg.role === 'assistant' && <div className="a-avatar"><Logo size={16} strokeWidth={3} /></div>}
+                      <div className="bubble-col">
+                        {msg.role === 'user' ? (
+                          <>
+                            {(msg.videoPreview || msg.image) && (
+                              <div className="u-photo-frame">
+                                {msg.videoPreview && <video src={msg.videoPreview} controls />}
+                                {msg.image && !msg.videoPreview && <img src={msg.image.preview} alt="" />}
+                              </div>
+                            )}
+                            {msg.content && !(msg.image || msg.videoPreview) && <div className="u-bubble">{msg.content}</div>}
+                          </>
+                        ) : msg.diagnosis ? (
+                          <DiagnosisCard diagnosis={msg.diagnosis} onOpen={() => setActiveDiagnosis(msg.diagnosis!)} />
+                        ) : msg.content === '' && isLoading && msg.id === lastMsg?.id ? (
+                          isAnalyzingPhoto ? (
+                            <div className="analyzing-card">
+                              <div className="analyzing-title">📸 Анализирую фото…</div>
+                              <div className="analyzing-track"><div className="analyzing-bar" /></div>
+                              <div className="analyzing-caption">Определяю симптомы по изображению…</div>
+                            </div>
+                          ) : (
+                            <div className="typing-card"><span /><span /><span /></div>
+                          )
+                        ) : (
+                          <div className="a-card">{renderMarkdown(msg.content)}</div>
+                        )}
+                        <div className="msg-time">
+                          {msg.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                          {msg.role === 'assistant' && typeof msg.costUsd === 'number' && <span> · ${msg.costUsd.toFixed(4)}</span>}
+                        </div>
+                      </div>
                     </div>
-                    <div className="bmeta">
-                      {msg.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                      {msg.role === 'assistant' && typeof msg.costUsd === 'number' && <span> · ${msg.costUsd.toFixed(4)}</span>}
+                  ))}
+                  {isAwaitingReply && (
+                    <div className="row assistant">
+                      <div className="a-avatar"><Logo size={16} strokeWidth={3} /></div>
+                      {isAnalyzingPhoto ? (
+                        <div className="analyzing-card">
+                          <div className="analyzing-title">📸 Анализирую фото…</div>
+                          <div className="analyzing-track"><div className="analyzing-bar" /></div>
+                          <div className="analyzing-caption">Определяю симптомы по изображению…</div>
+                        </div>
+                      ) : (
+                        <div className="typing-card"><span /><span /><span /></div>
+                      )}
                     </div>
-                  </div>
-                </div>
-              ))
-            )}
-            {isLoading && messages[messages.length - 1]?.role === 'user' && (
-              <div className="msg"><div className="av ai">🌾</div><div className="bubble ai"><div className="typing"><span /><span /><span /></div></div></div>
-            )}
-            <div ref={bottomRef} />
-          </div>
-
-          {/* Preview bars */}
-          {pendingImage && <div className="preview"><img src={pendingImage.preview} alt="" /><span className="preview-label">📸 Фото прикреплено</span><button className="preview-rm" onClick={() => setPendingImage(null)}>✕</button></div>}
-          {isExtractingVideo && <div className="preview"><span className="preview-label">🎥 Обрабатываю видео...</span></div>}
-          {pendingVideo && !isExtractingVideo && <div className="preview"><video src={pendingVideo.preview} /><span className="preview-label">🎥 Видео ({pendingVideo.frames.length} кадров)</span><button className="preview-rm" onClick={() => setPendingVideo(null)}>✕</button></div>}
-
-          {/* Input area when chatting */}
-          {messages.length > 0 && (
-            <div className="input-area">
-              <div className="input-card">
-                <textarea
-                  ref={messages.length > 0 ? textareaRef : undefined} value={input} rows={1}
-                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  placeholder="Опиши проблему или прикрепи фото..."
-                />
-                <div className="input-card-bottom">
-                  <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleFile} />
-                  <button className="ic-btn" onClick={() => fileRef.current?.click()}>📎 Фото</button>
-                  <button className={`ic-btn ${isRecording ? 'rec' : ''}`} onClick={isRecording ? () => { recognitionRef.current?.stop(); setIsRecording(false); } : startVoice}>
-                    {isRecording ? '🔴 Запись...' : '🎤 Голос'}
-                  </button>
-                  {isLoading
-                    ? <button className="ic-send stop" onClick={() => { abortController?.abort(); setIsLoading(false); }}>⏹</button>
-                    : <button className="ic-send" onClick={() => sendMessage()} disabled={!input.trim() && !pendingImage && !pendingVideo}>➤</button>}
+                  )}
+                  <div ref={bottomRef} />
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {pendingImage && <div className="preview"><img src={pendingImage.preview} alt="" /><span className="preview-label">📸 Фото прикреплено</span><button className="preview-rm" onClick={() => setPendingImage(null)} aria-label="Убрать"><X size={16} strokeWidth={2.75} /></button></div>}
+          {isExtractingVideo && <div className="preview"><span className="preview-label">🎥 Обрабатываю видео...</span></div>}
+          {pendingVideo && !isExtractingVideo && <div className="preview"><video src={pendingVideo.preview} /><span className="preview-label">🎥 Видео ({pendingVideo.frames.length} кадров)</span><button className="preview-rm" onClick={() => setPendingVideo(null)} aria-label="Убрать"><X size={16} strokeWidth={2.75} /></button></div>}
+
+          {Composer}
         </div>
       </div>
 
-      {/* CALC MODAL */}
+      {/* CALC MODAL — не редизайнен на этом этапе (отдельный шаг по плану) */}
       {showCalc && (
         <div className="overlay" onClick={e => e.target === e.currentTarget && setShowCalc(false)}>
           <div className="modal">
@@ -626,6 +554,8 @@ export default function NauryzAI() {
           </div>
         </div>
       )}
+
+      {activeDiagnosis && <DiagnosisModal diagnosis={activeDiagnosis} onClose={() => setActiveDiagnosis(null)} />}
     </>
   );
 }

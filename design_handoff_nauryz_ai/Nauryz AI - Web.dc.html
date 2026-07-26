@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-b8015afb-9af9-4825-841b-a4db3ba1114a/styles.css">
+<script src="_ds/organic-b8015afb-9af9-4825-841b-a4db3ba1114a/_ds_bundle.js"></script>
+<script src="./image-slot.js"></script>
+<style>
+body{margin:0}
+@keyframes barslide{0%{transform:translateX(-110%)}100%{transform:translateX(260%)}}
+@keyframes bounceDot{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-4px);opacity:1}}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dialogIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+@keyframes backdropIn{from{opacity:0}to{opacity:1}}
+@keyframes welcomeIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.btn,.card,.tag,.input{transition:background .18s ease,box-shadow .18s ease,transform .12s ease,border-color .18s ease}
+.card:hover{transform:translateY(-2px)}
+a{color:var(--color-accent-onbg)}
+a:hover{color:var(--color-accent-800)}
+@media (prefers-reduced-motion: reduce){
+*{animation-duration:0.001ms !important;animation-iteration-count:1 !important;transition-duration:0.001ms !important;}
+}
+</style>
+</helmet>
+<div style="{{themeVars}}height:100vh;display:flex;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text);overflow:hidden;transition:background .25s ease,color .25s ease;position:relative">
+<div style="position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:{{ornamentBg}};background-repeat:repeat;background-size:260px 260px"></div>
+
+<div style="width:{{sidebarWidth}};flex-shrink:0;overflow:hidden;transition:width .28s ease">
+<div style="width:272px;height:100%;display:flex;flex-direction:column;background:var(--color-surface);padding:20px 16px;box-sizing:border-box;gap:14px">
+<div style="display:flex;align-items:center;gap:10px">
+<div style="width:36px;height:36px;border-radius:999px;background:var(--color-accent-100);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+<svg width="19" height="19" viewBox="0 0 34 34"><path d="M17 30 C17 22 17 16 17 8" stroke="var(--color-accent-700)" stroke-width="2.5" stroke-linecap="round" fill="none"></path><path d="M17 14 C10 14 6 9 7 3 C13 3 18 7 17 14Z" fill="var(--color-accent-2-500)"></path><path d="M17 18 C24 18 28 13 27 6 C21 6 16 11 17 18Z" fill="var(--color-accent-500)"></path></svg>
+</div>
+<div style="flex:1;min-width:0">
+<div style="font-family:var(--font-heading);font-size:16.5px;line-height:1.1">{{assistantName}}</div>
+<div style="font-size:10.5px;color:var(--color-accent-onbg)">{{ui.subtitle}}</div>
+</div>
+<button class="btn btn-icon btn-secondary" style="flex-shrink:0" onClick="{{toggleSidebar}}" aria-label="{{ui.ariaHideHistory}}">
+<svg width="14" height="12" viewBox="0 0 14 12"><path d="M9 1L4 6l5 5" stroke="var(--color-text)" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+
+<button class="btn btn-primary btn-block" style="margin-top:0" onClick="{{newChat}}">
+<svg width="14" height="14" viewBox="0 0 14 14" style="margin-right:2px"><rect x="6" width="2" height="14" rx="1" fill="currentColor"></rect><rect y="6" width="14" height="2" rx="1" fill="currentColor"></rect></svg>
+{{ui.sidebarNewChat}}
+</button>
+
+<div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--color-neutral-600);margin:6px 2px 0">{{ui.historySection}}</div>
+<div style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px;margin:0 -4px;padding:0 4px">
+<sc-for list="{{historyChats}}" as="c" hint-placeholder-count="6">
+<div onClick="{{c.onClick}}" style="cursor:pointer;padding:10px 10px;border-radius:var(--radius-md);display:flex;flex-direction:column;gap:2px;background:{{c.rowBg}}">
+<div style="display:flex;justify-content:space-between;gap:6px">
+<div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{c.title}}</div>
+</div>
+<div style="font-size:11px;color:var(--color-neutral-600);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{c.snippet}}</div>
+<div style="font-size:10px;color:var(--color-neutral-500)">{{c.date}}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="display:flex;align-items:center;gap:8px;padding-top:10px;border-top:1px solid var(--color-divider)">
+<div style="width:28px;height:28px;border-radius:999px;background:var(--color-accent-2-100);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--color-accent-2-800)">Ф</div>
+<div style="font-size:12.5px;color:var(--color-text)">{{ui.farmerLabel}}</div>
+</div>
+</div>
+</div>
+
+<div style="flex:1;display:flex;flex-direction:column;min-width:0">
+
+<div style="display:flex;align-items:center;gap:10px;padding:16px 32px;flex-shrink:0;border-bottom:1px solid var(--color-divider)">
+<sc-if value="{{sidebarClosed}}" hint-placeholder-val="{{false}}">
+<button class="btn btn-icon btn-secondary" onClick="{{toggleSidebar}}" aria-label="{{ui.ariaShowHistory}}">
+<svg width="18" height="14" viewBox="0 0 18 14"><rect y="0" width="18" height="2" rx="1" fill="var(--color-text)"></rect><rect y="6" width="18" height="2" rx="1" fill="var(--color-text)"></rect><rect y="12" width="18" height="2" rx="1" fill="var(--color-text)"></rect></svg>
+</button>
+</sc-if>
+<div style="font-family:var(--font-heading);font-size:18px">{{headerTitle}}</div>
+<div style="flex:1"></div>
+<button class="btn btn-secondary" style="font-size:13px" onClick="{{openFeedCalc}}">{{ui.feedCalcBtnLabel}}</button>
+
+
+<button class="btn btn-icon btn-secondary" onClick="{{toggleDarkMode}}" aria-label="{{ui.ariaTheme}}">
+<sc-if value="{{lightModeOn}}" hint-placeholder-val="{{true}}"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4" fill="var(--color-accent-500)"></circle><g stroke="var(--color-accent-500)" stroke-width="1.4" stroke-linecap="round"><line x1="8" y1="0" x2="8" y2="1.6"></line><line x1="8" y1="14.4" x2="8" y2="16"></line><line x1="0" y1="8" x2="1.6" y2="8"></line><line x1="14.4" y1="8" x2="16" y2="8"></line><line x1="2.3" y1="2.3" x2="3.4" y2="3.4"></line><line x1="12.6" y1="12.6" x2="13.7" y2="13.7"></line><line x1="2.3" y1="13.7" x2="3.4" y2="12.6"></line><line x1="12.6" y1="3.4" x2="13.7" y2="2.3"></line></g></svg></sc-if>
+<sc-if value="{{darkMode}}" hint-placeholder-val="{{false}}"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M14 9.3A6.3 6.3 0 016.7 2 6.5 6.5 0 1014 9.3Z" fill="var(--color-accent-500)"></path></svg></sc-if>
+</button>
+<button class="btn btn-icon btn-secondary" onClick="{{toggleLang}}" style="font-size:11px;font-weight:700" aria-label="Language">{{ui.langToggle}}</button>
+</div>
+
+<sc-if value="{{isEmpty}}" hint-placeholder-val="{{true}}">
+<div style="flex:1;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;gap:6px;text-align:center">
+<div style="width:64px;height:64px;border-radius:999px;background:var(--color-accent-2-100);display:flex;align-items:center;justify-content:center;margin-bottom:6px;animation:welcomeIn .55s ease both">
+<svg width="34" height="34" viewBox="0 0 34 34"><path d="M17 30 C17 22 17 16 17 8" stroke="var(--color-accent-700)" stroke-width="2.5" stroke-linecap="round" fill="none"></path><path d="M17 14 C10 14 6 9 7 3 C13 3 18 7 17 14Z" fill="var(--color-accent-2-500)"></path><path d="M17 18 C24 18 28 13 27 6 C21 6 16 11 17 18Z" fill="var(--color-accent-500)"></path></svg>
+</div>
+<h2 style="margin:0;font-size:26px;animation:welcomeIn .55s ease .05s both">{{greeting}}</h2>
+<p style="margin:0 0 18px;font-size:14px;color:var(--color-neutral-700);max-width:460px;animation:welcomeIn .55s ease .1s both">{{ui.emptySubtitle}}</p>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;width:100%;max-width:760px;text-align:left">
+<sc-for list="{{quickQuestions}}" as="q" hint-placeholder-count="8">
+<div class="card elev-sm" onClick="{{q.onClick}}" style="cursor:pointer;padding:14px;gap:8px;animation:cardIn .5s ease both;animation-delay:{{q.delay}}">
+<sc-if value="{{useEmojiIcons}}" hint-placeholder-val="{{true}}"><div style="font-size:22px;line-height:1">{{q.emoji}}</div></sc-if>
+<div style="font-size:13px;line-height:1.35;font-weight:600">{{q.text}}</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isChatScreen}}" hint-placeholder-val="{{false}}">
+<div style="flex:1;overflow:auto;padding:24px 0;display:flex;justify-content:center">
+<div style="width:100%;max-width:680px;display:flex;flex-direction:column;gap:16px;padding:0 24px">
+<sc-for list="{{messages}}" as="m" hint-placeholder-count="2">
+
+<sc-if value="{{m.isUser}}" hint-placeholder-val="{{true}}">
+<div style="align-self:flex-end;max-width:70%;display:flex;flex-direction:column;gap:4px;align-items:flex-end;animation:msgIn .3s ease both">
+<sc-if value="{{m.kindText}}"><div style="background:var(--color-accent);color:#fbf4e9;padding:12px 16px;border-radius:18px 18px 4px 18px;font-size:14.5px;line-height:1.45">{{m.text}}</div></sc-if>
+<sc-if value="{{m.kindPhoto}}">
+<div style="background:var(--color-accent);padding:6px;border-radius:18px 18px 4px 18px;width:200px;height:200px">
+<image-slot id="{{m.photoId}}" shape="rounded" radius="14" placeholder="Фото курицы/птичника"></image-slot>
+</div>
+</sc-if>
+<div style="font-size:11px;color:var(--color-neutral-600)">{{m.time}}</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isAssistant}}" hint-placeholder-val="{{false}}">
+<div style="align-self:flex-start;max-width:78%;display:flex;gap:10px;animation:msgIn .3s ease both">
+<div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent-100);flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:2px">
+<svg width="16" height="16" viewBox="0 0 34 34"><path d="M17 30 C17 22 17 16 17 8" stroke="var(--color-accent-700)" stroke-width="3" stroke-linecap="round" fill="none"></path><path d="M17 14 C10 14 6 9 7 3 C13 3 18 7 17 14Z" fill="var(--color-accent-2-500)"></path><path d="M17 18 C24 18 28 13 27 6 C21 6 16 11 17 18Z" fill="var(--color-accent-500)"></path></svg>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+
+<sc-if value="{{m.kindTyping}}">
+<div class="card" style="padding:12px 16px;display:flex;gap:5px;align-items:center;width:fit-content">
+<span style="width:6px;height:6px;border-radius:999px;background:var(--color-neutral-600);display:inline-block;animation:bounceDot 1.1s infinite"></span>
+<span style="width:6px;height:6px;border-radius:999px;background:var(--color-neutral-600);display:inline-block;animation:bounceDot 1.1s .15s infinite"></span>
+<span style="width:6px;height:6px;border-radius:999px;background:var(--color-neutral-600);display:inline-block;animation:bounceDot 1.1s .3s infinite"></span>
+</div>
+</sc-if>
+
+<sc-if value="{{m.kindAnalyzing}}">
+<div class="card elev-sm" style="padding:14px;width:260px;gap:8px">
+<div style="font-size:13.5px;font-weight:700">📸 Анализирую фото…</div>
+<div style="height:6px;border-radius:999px;background:var(--color-neutral-200);overflow:hidden;position:relative">
+<div style="height:100%;width:35%;background:var(--color-accent);border-radius:999px;animation:barslide 1.1s ease-in-out infinite"></div>
+</div>
+<div style="font-size:12px;color:var(--color-neutral-600)">Определяю симптомы по изображению…</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.kindDiagnosis}}">
+<div class="card elev-sm" style="padding:16px;gap:10px;width:340px">
+<span class="tag tag-accent" style="width:fit-content">{{ui.tagInspection}}</span>
+<div style="font-size:14.5px;opacity:.85">{{m.diagnosis.inspection}}</div>
+<span class="tag tag-accent-2" style="width:fit-content">{{ui.tagSymptoms}}</span>
+<ul style="margin:0;padding-left:16px;font-size:12.5px;opacity:.85;display:flex;flex-direction:column;gap:3px">
+<sc-for list="{{m.diagnosis.symptoms}}" as="s" hint-placeholder-count="3"><li>{{s}}</li></sc-for>
+</ul>
+<span class="tag tag-neutral" style="width:fit-content">{{ui.tagCauses}}</span>
+<div style="display:flex;flex-direction:column;gap:7px">
+<sc-for list="{{m.diagnosis.topCauses}}" as="c" hint-placeholder-count="2">
+<div>
+<div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:3px;gap:6px"><span>{{c.name}}</span><span style="font-weight: 800; font-size: 15.5px; color: var(--color-accent-500)">{{c.pctStr}}</span></div>
+<div style="height:6px;border-radius:999px;background:var(--color-neutral-200);overflow:hidden"><div style="height:100%;width:{{c.pctStr}};background:{{c.barColor}}"></div></div>
+</div>
+</sc-for>
+</div>
+<button class="btn btn-secondary" style="margin-top:2px;font-size:13px" onClick="{{m.openDiagnosis}}">{{ui.detailBtn}}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{m.kindClarify}}">
+<div class="card elev-sm" style="padding:16px;gap:10px;width:340px">
+<span class="tag tag-accent" style="width:fit-content">{{ui.tagClarify}}</span>
+<div class="card-title" style="font-size:16px">{{m.clarify.title}}</div>
+<div style="font-size:13px;opacity:.85">{{m.clarify.intro}}</div>
+<sc-for list="{{m.clarify.groups}}" as="g" hint-placeholder-count="4">
+<div>
+<div style="font-size:12px;font-weight:700;color:var(--color-accent-onbg);margin-bottom:2px">{{g.heading}}</div>
+<div style="font-size:13px;opacity:.85;line-height:1.45">{{g.itemsText}}</div>
+</div>
+</sc-for>
+<div style="font-size:12px;font-weight:700;color:var(--color-accent-onbg)">{{ui.probableDirections}}</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<sc-for list="{{m.clarify.causesPreview}}" as="c" hint-placeholder-count="5">
+<div style="font-size:12.5px;opacity:.85">• {{c}}</div>
+</sc-for>
+</div>
+<div style="font-size:12.5px;color:var(--color-accent-onbg);font-weight:600">{{m.clarify.closing}}</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.kindCalc}}">
+<div class="card elev-sm" style="padding:16px;gap:12px;width:340px">
+<div class="card-title" style="font-size:16px">{{ui.calcTitle}}</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<label style="font-size:12px;font-weight:700;color:var(--color-accent-onbg)">{{ui.calcAgeLabel}}</label>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{calcAgeGroups}}" as="g" hint-placeholder-count="4">
+<button class="btn" style="font-size:12px;padding:6px 10px;background:{{g.bg}};color:{{g.fg}};border:none" onClick="{{g.onClick}}">{{g.label}}</button>
+</sc-for>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<label style="font-size:12px;font-weight:700;color:var(--color-accent-onbg)">{{ui.calcHeadsLabel}}</label>
+<input class="input" type="number" min="0" value="{{calcHeads}}" onChange="{{onCalcHeadsChange}}" style="font-size:14px">
+</div>
+<div class="card" style="padding:12px;gap:4px;background:var(--color-accent-100)">
+<div style="font-size:12px;color:var(--color-accent-800)">Суточная норма для {{calcHeads}} гол. ({{calcActiveLabel}})</div>
+<div style="font-size:22px;font-weight:800;color:var(--color-accent-800)">{{calcResultText}}</div>
+<div style="font-size:11.5px;color:var(--color-accent-800);opacity:.85">{{ui.calcProteinLabel}} {{calcActiveProtein}}</div>
+</div>
+<div style="font-size:12px;color:var(--color-accent-onbg)">{{ui.calcWaterNote}}</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.kindInfo}}">
+<div class="card elev-sm" style="padding:16px;gap:8px;width:340px">
+<div class="card-title" style="font-size:16px">{{m.info.title}}</div>
+<ul style="margin:0;padding-left:16px;font-size:13px;display:flex;flex-direction:column;gap:4px;opacity:.85">
+<sc-for list="{{m.info.bullets}}" as="b" hint-placeholder-count="4"><li>{{b}}</li></sc-for>
+</ul>
+<div style="font-size:12.5px;color:var(--color-accent-onbg)">{{m.info.note}}</div>
+</div>
+</sc-if>
+
+<div style="font-size:11px;color:var(--color-neutral-600)">{{m.time}}</div>
+</div>
+</div>
+</sc-if>
+
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<div style="flex-shrink:0;padding:16px 24px 22px;display:flex;justify-content:center">
+<div style="width:100%;max-width:680px;display:flex;align-items:center;gap:8px;background:var(--color-surface);border-radius:999px;padding:6px 6px 6px 18px">
+<input class="input" style="flex:1;background:transparent;border:none;padding:8px 0;box-shadow:none;font-size:14.5px" placeholder="{{ui.inputPlaceholder}}" value="{{inputText}}" onChange="{{onInputChange}}" onKeyDown="{{onInputKeyDown}}">
+<button class="btn" style="background: var(--color-accent-100); border: none; gap: 6px; font-size: 13px; width: 86px; height: 34px; color: var(--color-accent-800)" onClick="{{sendPhoto}}">
+<svg width="16" height="14" viewBox="0 0 17 15"><path d="M6 0h5l1.2 2H16a1 1 0 011 1v10a1 1 0 01-1 1H1a1 1 0 01-1-1V3a1 1 0 011-1h3.8L6 0z" fill="var(--color-accent-700)"></path><circle cx="8.5" cy="8" r="3.2" fill="var(--color-accent-100)"></circle></svg>
+{{ui.ariaPhoto}}
+</button>
+<button class="btn" style="background: var(--color-accent-2-100); border: none; gap: 6px; font-size: 13px; color: var(--color-accent-800)">
+<svg width="11" height="15" viewBox="0 0 12 16"><rect x="3" width="6" height="10" rx="3" fill="var(--color-accent-2-700)"></rect><path d="M0 7a6 6 0 0012 0" stroke="var(--color-accent-2-700)" stroke-width="1.6" fill="none"></path><rect x="5" y="13" width="2" height="3" fill="var(--color-accent-2-700)"></rect></svg>
+{{ui.ariaVoice}}
+</button>
+<button class="btn" style="background:var(--color-accent);color:#fbf4e9;width:40px;height:40px;padding:0;border-radius:999px;border:none" onClick="{{sendTypedText}}" aria-label="{{ui.ariaSend}}">
+<svg width="16" height="16" viewBox="0 0 15 15"><path d="M1 7.5L14 1L9 14L7 8.5L1 7.5Z" fill="currentColor"></path></svg>
+</button>
+</div>
+</div>
+</div>
+
+<sc-if value="{{diagnosisOpen}}" hint-placeholder-val="{{false}}">
+<div class="dialog-backdrop" style="z-index:50;animation:backdropIn .2s ease both">
+<div class="dialog" style="max-width:520px;max-height:82vh;overflow:auto;animation:dialogIn .22s ease both">
+<div class="dialog-title" style="display:flex;align-items:center;justify-content:space-between">
+Результат диагностики
+<button class="btn btn-icon btn-secondary" onClick="{{closeDiagnosis}}" aria-label="{{ui.ariaClose}}">
+<svg width="13" height="13" viewBox="0 0 13 13"><path d="M1 1l11 11M12 1L1 12" stroke="var(--color-text)" stroke-width="1.8" stroke-linecap="round"></path></svg>
+</button>
+</div>
+<div class="dialog-body" style="display:flex;flex-direction:column;gap:16px">
+<div class="card" style="padding:14px;gap:8px;background:var(--color-accent-100)">
+<span class="tag tag-accent" style="width:fit-content">{{ui.tagInspection}}</span>
+<div style="font-size:16px;line-height:1.5;font-weight:600;color:var(--color-accent-800)">{{activeDiagnosis.inspection}}</div>
+</div>
+<div>
+<h4 style="margin:0 0 8px">{{ui.tagSymptoms}}</h4>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{activeDiagnosis.symptoms}}" as="s" hint-placeholder-count="4"><span class="tag tag-neutral">{{s}}</span></sc-for>
+</div>
+</div>
+<div>
+<h4 style="margin:0 0 10px">{{ui.causesHeading}}</h4>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{activeDiagnosis.causes}}" as="c" hint-placeholder-count="4">
+<div class="card" style="padding:10px 12px;gap:6px;background:{{c.cardBg}}">
+<div style="display:flex;justify-content:space-between;font-size:14.5px;font-weight:700;gap:8px"><span style="color:{{c.textColor}}">{{c.name}}</span><span style="font-size:18px;font-weight:800;color:{{c.textColor}}">{{c.pctStr}}</span></div>
+<div style="height:7px;border-radius:999px;background:rgba(255,255,255,0.6);overflow:hidden"><div style="height:100%;width:{{c.pctStr}};background:{{c.barColor}}"></div></div>
+</div>
+</sc-for>
+</div>
+</div>
+<div>
+<h4 style="margin:0 0 10px">{{ui.homeCareHeading}}</h4>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{activeDiagnosis.homeCare}}" as="h" hint-placeholder-count="4">
+<div style="display:flex;gap:8px;align-items:flex-start;font-size:15.5px;line-height:1.5;font-weight:500">
+<span style="flex-shrink:0;width:20px;height:20px;border-radius:999px;background:var(--color-accent-2-500);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700">{{h.n}}</span>
+<span>{{h.text}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div>
+<h4 style="margin:0 0 10px">{{ui.vetHeading}}</h4>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{activeDiagnosis.recommendations}}" as="r" hint-placeholder-count="4">
+<div style="display:flex;gap:8px;align-items:flex-start;font-size:15.5px;line-height:1.5;font-weight:500">
+<span style="flex-shrink:0;width:20px;height:20px;border-radius:999px;background:var(--color-accent-500);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700">{{r.n}}</span>
+<span>{{r.text}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+<div class="dialog-actions">
+<button class="btn btn-primary" onClick="{{closeDiagnosis}}">{{ui.doneSaveBtn}}</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{feedCalcOpen}}" hint-placeholder-val="{{false}}">
+<div class="dialog-backdrop" style="z-index:50;animation:backdropIn .2s ease both">
+<div class="dialog" style="max-width:460px;max-height:82vh;overflow:auto;animation:dialogIn .22s ease both">
+<div class="dialog-title" style="display:flex;align-items:center;justify-content:space-between">
+Калькулятор нормы корма
+<button class="btn btn-icon btn-secondary" onClick="{{closeFeedCalc}}" aria-label="Закрыть">
+<svg width="13" height="13" viewBox="0 0 13 13"><path d="M1 1l11 11M12 1L1 12" stroke="var(--color-text)" stroke-width="1.8" stroke-linecap="round"></path></svg>
+</button>
+</div>
+<div class="dialog-body" style="display:flex;flex-direction:column;gap:16px">
+
+<div>
+<div style="font-size:12px;font-weight:700;color:var(--color-accent-onbg);margin-bottom:6px">{{ui.birdTypeLabel}}</div>
+<div style="display:flex;gap:6px">
+<sc-for list="{{feedCalcBirdTypes}}" as="t" hint-placeholder-count="3">
+<button class="btn" style="flex:1;font-size:13px;padding:8px 6px;background:{{t.bg}};color:{{t.fg}};border:none" onClick="{{t.onClick}}">{{t.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div>
+<div style="font-size:12px;font-weight:700;color:var(--color-accent-onbg);margin-bottom:6px">{{ui.ageLabel}}</div>
+<div style="display:flex;gap:6px">
+<input class="input" type="number" min="0" value="{{feedCalcAgeValue}}" onChange="{{onFeedCalcAgeChange}}" style="flex:1;font-size:14px">
+<sc-for list="{{feedCalcAgeUnits}}" as="u" hint-placeholder-count="2">
+<button class="btn" style="font-size:13px;padding:8px 14px;background:{{u.bg}};color:{{u.fg}};border:none" onClick="{{u.onClick}}">{{u.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div>
+<div style="font-size:12px;font-weight:700;color:var(--color-accent-onbg);margin-bottom:6px">{{ui.headsLabel}}</div>
+<input class="input" type="number" min="0" value="{{feedCalcHeads}}" onChange="{{onFeedCalcHeadsChange}}" style="font-size:14px">
+</div>
+
+<div>
+<div style="font-size:12px;font-weight:700;color:var(--color-accent-onbg);margin-bottom:6px">{{ui.priceLabel}}</div>
+<input class="input" type="number" min="0" value="{{feedCalcPrice}}" onChange="{{onFeedCalcPriceChange}}" placeholder="{{ui.pricePlaceholder}}" style="font-size:14px">
+</div>
+
+<div class="card" style="padding:16px;gap:10px;background:var(--color-accent-100)">
+<div style="font-size:12px;font-weight:700;color:var(--color-accent-800)">{{ui.resultLabel}}</div>
+<div style="display:flex;flex-direction:column;gap:2px">
+<div style="font-size:24px;font-weight:800;color:var(--color-accent-800)">{{feedCalcPerHeadText}}</div>
+<div style="font-size:12.5px;color:var(--color-accent-800);opacity:.85">{{ui.perHeadSub}}</div>
+</div>
+<div style="height:1px;background:rgba(0,0,0,0.08)"></div>
+<div style="display:flex;flex-direction:column;gap:2px">
+<div style="font-size:21px;font-weight:800;color:var(--color-accent-800)">{{feedCalcDailyKgText}}</div>
+<div style="font-size:12.5px;color:var(--color-accent-800);opacity:.85">{{ui.dailySub}}</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:2px">
+<div style="font-size:21px;font-weight:800;color:var(--color-accent-800)">{{feedCalcMonthlyKgText}}</div>
+<div style="font-size:12.5px;color:var(--color-accent-800);opacity:.85">{{ui.monthlySub}}</div>
+</div>
+<sc-if value="{{feedCalcHasCost}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;flex-direction:column;gap:2px">
+<div style="font-size:21px;font-weight:800;color:var(--color-accent-800)">{{feedCalcCostText}}</div>
+<div style="font-size:12.5px;color:var(--color-accent-800);opacity:.85">{{ui.costSub}}</div>
+</div>
+</sc-if>
+</div>
+
+<div class="card" style="padding:12px 14px;gap:2px;background:var(--color-accent-2-100)">
+<div style="font-size:14.5px;font-weight:700;color:var(--color-accent-2-800)">💧 {{feedCalcWaterText}}</div>
+<div style="font-size:12px;color:var(--color-accent-2-800);opacity:.85">{{ui.waterSub}}</div>
+</div>
+
+</div>
+<div class="dialog-actions">
+<button class="btn btn-primary" onClick="{{closeFeedCalc}}">{{ui.doneBtn}}</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:800},&quot;assistantName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Nauryz AI&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;greeting&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Сәлем! Чем помочь?&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;useEmojiIcons&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const SEV = {
+  high: { bar: 'var(--color-accent-500)', text: 'var(--color-accent-800)', bg: 'var(--color-accent-100)' },
+  critical: { bar: 'var(--color-accent-700)', text: 'var(--color-accent-900)', bg: 'var(--color-accent-200)' },
+  medium: { bar: 'var(--color-accent-2-500)', text: 'var(--color-accent-2-800)', bg: 'var(--color-accent-2-100)' },
+  low: { bar: 'var(--color-neutral-400)', text: 'var(--color-neutral-700)', bg: 'var(--color-neutral-100)' },
+};
+
+const QUICK = [
+  { id: 'lame', emoji: '🐔', text: 'Курица хромает, что делать?', textKk: 'Тауық ақсайды, не істеу керек?' },
+  { id: 'eggs', emoji: '🥚', text: 'Куры перестали нести яйца', textKk: 'Тауықтар жұмыртқа баспай қалды' },
+  { id: 'feed', emoji: '💊', text: 'Норма корма для бройлеров', textKk: 'Бройлерге жем нормасы' },
+  { id: 'vitamin', emoji: '🌿', text: 'Признаки авитаминоза у кур', textKk: 'Тауықтардағы авитаминоз белгілері' },
+  { id: 'newcastle', emoji: '🦠', text: 'Болезнь Ньюкасла — симптомы', textKk: 'Ньюкасл ауруы — белгілері' },
+  { id: 'subsidy', emoji: '📋', text: 'Субсидии МСХ РК 2026', textKk: 'ҚР АШМ субсидиялары 2026' },
+  { id: 'bizplan', emoji: '🌾', text: 'Бизнес-план птицефабрики', textKk: 'Құс фабрикасының бизнес-жоспары' },
+  { id: 'breeding', emoji: '🔬', text: 'Селекция бройлеров — кроссы', textKk: 'Бройлер селекциясы — кросстар' },
+];
+
+const HISTORY = [
+  { id: 1, title: 'Курица хромает, что делать?', snippet: 'Возможная причина — нехватка кальция…', date: 'Сегодня, 10:24', qid: 'lame' },
+  { id: 2, title: 'Куры перестали нести яйца', snippet: 'Проверьте световой режим и рацион…', date: 'Вчера, 18:02', qid: 'eggs' },
+  { id: 3, title: 'Норма корма для бройлеров', snippet: '1–7 дней: 15–20 г/гол в сутки…', date: '22 июля', qid: 'feed' },
+  { id: 4, title: 'Признаки авитаминоза у кур', snippet: 'Взъерошенные перья, слабость…', date: '19 июля', qid: 'vitamin' },
+  { id: 5, title: 'Субсидии МСХ РК 2026', snippet: 'Субсидирование за 1 кг мяса…', date: '14 июля', qid: 'subsidy' },
+  { id: 6, title: 'Болезнь Ньюкасла — симптомы', snippet: '⚠️ Изолируйте птицу немедленно', date: '10 июля', qid: 'newcastle' },
+];
+
+const AGE_GROUPS = [
+  { id: 'd1', label: '1–7 дней', min: 15, max: 20, protein: '22–24%' },
+  { id: 'd2', label: '8–21 день', min: 40, max: 60, protein: '20–22%' },
+  { id: 'd3', label: '22–35 дней', min: 80, max: 120, protein: '18–20%' },
+  { id: 'd4', label: '36+ дней', min: 130, max: 160, protein: '16–18%' },
+];
+
+const UI = {
+  ru: {
+    subtitle: 'Агро-ассистент', emptySubtitle: 'Задай вопрос о птицеводстве или прикрепи фото курицы/птичника — поставлю диагноз и подскажу решение', inputPlaceholder: 'Опиши проблему или задай вопрос…',
+    ariaHistory: 'История', ariaTheme: 'Тема', ariaFeedCalc: 'Калькулятор корма', ariaNewChat: 'Новый чат', ariaPhoto: 'Фото', ariaVoice: 'Голос', ariaSend: 'Отправить', ariaBack: 'Назад', ariaClose: 'Закрыть', ariaHideHistory: 'Скрыть историю', ariaShowHistory: 'Показать историю',
+    historyTitle: 'История чатов', historySection: 'История', newChatBtn: '+ Новый чат', newChatTitle: 'Новый чат', sidebarNewChat: 'Новый чат', farmerLabel: 'Фермер', ragTag: 'RAG-база знаний', visionTag: 'Vision-анализ фото', feedCalcBtnLabel: '⚖️ Калькулятор корма',
+    tagInspection: 'Осмотр', tagSymptoms: 'Симптомы', tagCauses: 'Вероятные причины', detailBtn: 'Подробный разбор →',
+    tagClarify: 'Уточняющие вопросы', probableDirections: '⚠️ Вероятные направления',
+    calcTitle: '🧮 Калькулятор корма для бройлеров', calcAgeLabel: 'Возраст птицы', calcHeadsLabel: 'Поголовье (голов)', calcProteinLabel: 'Белок в корме:', calcWaterNote: 'Вода нужна примерно вдвое больше объёма корма, особенно в жару.',
+    diagnosisTitle: 'Результат диагностики', causesHeading: 'Возможные причины', homeCareHeading: '🏠 Лечение в домашних условиях', vetHeading: 'Когда обращаться к ветеринару', doneSaveBtn: 'Понятно, сохранить в историю',
+    feedCalcTitle: 'Калькулятор нормы корма', birdTypeLabel: 'Тип птицы', ageLabel: 'Возраст', headsLabel: 'Количество голов', priceLabel: 'Цена корма за кг, ₸ (необязательно)', pricePlaceholder: 'Например, 250',
+    resultLabel: 'Результат', perHeadSub: 'на голову в сутки', dailySub: 'кг/сутки на всё стадо', monthlySub: 'кг в месяц', costSub: '₸ в месяц на корм', waterSub: 'Ориентировочный расход воды в сутки', doneBtn: 'Готово',
+    birdBroiler: 'Бройлер', birdLayer: 'Несушка', birdYoung: 'Молодняк', unitDays: 'Дни', unitWeeks: 'Недели',
+    goodQuestionTitle: 'Хороший вопрос', goodQuestionBullet: 'Уточните возраст, породу/кросс и когда началась проблема — так я отвечу точнее.', goodQuestionNote: 'Можно также прикрепить фото 📷',
+    greetingDefault: 'Сәлем! Чем помочь?', langToggle: 'ҚАЗ',
+  },
+  kk: {
+    subtitle: 'Агро-көмекші', emptySubtitle: 'Құс шаруашылығы туралы сұрақ қой немесе тауық/құсхананың фотосын тіркеп жібер — диагноз қоямын және шешім айтамын', inputPlaceholder: 'Мәселені сипаттаңыз немесе сұрақ қойыңыз…',
+    ariaHistory: 'Тарих', ariaTheme: 'Тақырып', ariaFeedCalc: 'Жем калькуляторы', ariaNewChat: 'Жаңа чат', ariaPhoto: 'Фото', ariaVoice: 'Дауыс', ariaSend: 'Жіберу', ariaBack: 'Артқа', ariaClose: 'Жабу', ariaHideHistory: 'Тарихты жасыру', ariaShowHistory: 'Тарихты көрсету',
+    historyTitle: 'Чаттар тарихы', historySection: 'Тарих', newChatBtn: '+ Жаңа чат', newChatTitle: 'Жаңа чат', sidebarNewChat: 'Жаңа чат', farmerLabel: 'Фермер', ragTag: 'RAG-білім базасы', visionTag: 'Vision-фото талдауы', feedCalcBtnLabel: '⚖️ Жем калькуляторы',
+    tagInspection: 'Қарау', tagSymptoms: 'Белгілер', tagCauses: 'Ықтимал себептер', detailBtn: 'Толық талдау →',
+    tagClarify: 'Нақтылау сұрақтары', probableDirections: '⚠️ Ықтимал бағыттар',
+    calcTitle: '🧮 Бройлерге арналған жем калькуляторы', calcAgeLabel: 'Құстың жасы', calcHeadsLabel: 'Бас саны', calcProteinLabel: 'Жемдегі белок:', calcWaterNote: 'Су жемнің көлемінен шамамен екі есе көп қажет, әсіресе ысықта.',
+    diagnosisTitle: 'Диагностика нәтижесі', causesHeading: 'Ықтимал себептер', homeCareHeading: '🏠 Үй жағдайында емдеу', vetHeading: 'Ветеринарға қашан жүгіну керек', doneSaveBtn: 'Түсінікті, тарихқа сақтау',
+    feedCalcTitle: 'Жем нормасының калькуляторы', birdTypeLabel: 'Құс түрі', ageLabel: 'Жасы', headsLabel: 'Бас саны', priceLabel: 'Жемнің 1 кг бағасы, ₸ (міндетті емес)', pricePlaceholder: 'Мысалы, 250',
+    resultLabel: 'Нәтиже', perHeadSub: 'бір басқа тәулігіне', dailySub: 'кг/тәулігіне бүкіл үйірге', monthlySub: 'кг айына', costSub: '₸ айына жемге', waterSub: 'Тәуліктік судың болжамды шығыны', doneBtn: 'Дайын',
+    birdBroiler: 'Бройлер', birdLayer: 'Жұмыртқашы', birdYoung: 'Жас құс', unitDays: 'Күн', unitWeeks: 'Апта',
+    goodQuestionTitle: 'Жақсы сұрақ', goodQuestionBullet: 'Жасын, тұқымын/кроссын және мәселе қашан басталғанын нақтылаңыз — жауаб дәлірек болады.', goodQuestionNote: 'Фотоны да тіркеуге болады 📷',
+    greetingDefault: 'Сәлем! Немен көмектесейін?', langToggle: 'RU',
+  },
+};
+
+const CLARIFY = {
+  lame: {
+    title: 'Хромота у курицы — срочная диагностика',
+    intro: 'Хромота — серьёзный симптом. Ответьте на несколько вопросов ниже или пришлите фото/видео — так я поставлю точный диагноз, а не буду гадать.',
+    groups: [
+      { heading: 'Возраст курицы', itemsText: 'Суточный цыплёнок / 2–4 недели / молодка / взрослая несушка — это критично для диагноза' },
+      { heading: 'Какая нога или крыло', itemsText: 'Одна задняя нога (волочит, не держит вес)? Обе ноги хромают поочерёдно? Крыло свисает вместе с ногой?' },
+      { heading: 'Поза и движение', itemsText: 'Сидит неподвижно, не встаёт? Ходит, но с болью? «Шпагат» — ноги разведены в стороны? Запрокидывает голову назад?' },
+      { heading: 'Другие признаки', itemsText: 'Температура ноги горячая или холодная? Есть опухоль, синяк, кровь? Клюв и глаза в норме? Каков помёт? Хромает одна птица или несколько?' },
+      { heading: 'Условия содержания', itemsText: 'Подстилка сухая или влажная, есть сквозняки? Когда впервые заметили хромоту?' },
+    ],
+    causesPreview: [
+      'Болезнь Марека — паралич ног, «шпагат», серо-голубой глаз (обычно у молодняка)',
+      'Травма или ушиб — опухоль, синяк, внезапное начало, одна нога',
+      'Авитаминоз A — хромота вместе со слепотой или конъюнктивитом у молодняка',
+      'Кокцидиоз — хромота с диареей, обычно в 3–12 недель',
+      'Артрит или подагра — припухлость суставов, чаще у взрослых кур',
+    ],
+    closing: 'Отправьте фото/видео хромающей курицы ✍️ или ответьте текстом на вопросы выше — и я дам точный диагноз с рекомендациями.',
+  },
+};
+
+const RAW = {
+  lame: {
+    inspection: 'На основе описания: курица хромает на одну лапу, встаёт с трудом, дольше сидит на месте и меньше двигается по вольеру. Это частая жалоба у кур на подворье, и причин может быть несколько — от простой нехватки минералов до инфекции сустава, поэтому важно проверить лапу и рацион по пунктам ниже.',
+    symptoms: ['Хромота, подволакивание одной лапы', 'Отёк, покраснение или потепление сустава на ощупь', 'Курица чаще сидит, встаёт с видимым усилием', 'Снижение активности и подвижности в стаде', 'Возможен отказ от корма или снижение аппетита', 'В запущенных случаях — искривление пальцев лапы'],
+    causes: [
+      { name: 'Нехватка кальция и витамина D3', pct: 42, severity: 'high' },
+      { name: 'Травма или ушиб лапы', pct: 28, severity: 'medium' },
+      { name: 'Бактериальный артрит (пастереллёз)', pct: 20, severity: 'medium' },
+      { name: 'Повреждение от жёсткой или мокрой подстилки', pct: 10, severity: 'low' },
+    ],
+    homeCare: [
+      'Кормовой мел, ракушка или толчёная яичная скорлупа — по 1 ч.л. на голову в корм 5–7 дней',
+      'Тёплая ванночка для лапы с ромашкой 5–10 минут в день, если заметен небольшой отёк',
+      'Мягкая сухая подстилка (солома, опилки) вместо жёсткого или скользкого пола',
+      'Отдельная клетка на 3–5 дней, чтобы стадо не затаптывало больную лапу',
+    ],
+    recommendations: [
+      'Добавьте в рацион кормовой мел, ракушку или костную муку — источник кальция',
+      'Введите премикс с витамином D3, особенно если птица мало бывает на солнце',
+      'Осмотрите лапу на наличие ран, наростов, занозы или инородных тел',
+      'Отсадите курицу от общего стада на 3–5 дней, чтобы избежать травли и дать отдохнуть лапе',
+      'Смените подстилку на более мягкую и сухую (солома, опилки)',
+      'Если отёк, хромота или потеря аппетита не проходят 3 дня — обратитесь к ветеринару очно',
+    ],
+  },
+  lamePhoto: {
+    inspection: 'По фото видно: курица хромает на одну лапу, оперение в целом в порядке, явных открытых ран или кровотечения не видно. Поза курицы и то, как она держит лапу, указывают на проблему сустава или дефицит минералов, а не на свежую травму — но точный осмотр лапы руками всё равно нужен.',
+    symptoms: ['Хромота при ходьбе, неровная походка', 'Держит поражённую лапу поджатой к телу', 'Заметно снижена активность на фото', 'Оперение вокруг сустава может быть взъерошено'],
+    causes: [
+      { name: 'Нехватка кальция и витамина D3', pct: 42, severity: 'high' },
+      { name: 'Травма или ушиб лапы', pct: 28, severity: 'medium' },
+      { name: 'Бактериальный артрит (пастереллёз)', pct: 20, severity: 'medium' },
+      { name: 'Повреждение от жёсткой подстилки', pct: 10, severity: 'low' },
+    ],
+    homeCare: [
+      'Кормовой мел, ракушка или толчёная яичная скорлупа — по 1 ч.л. на голову в корм 5–7 дней',
+      'Тёплая ванночка для лапы с ромашкой 5–10 минут в день при небольшом отёке',
+      'Мягкая сухая подстилка вместо жёсткого пола',
+      'Отдельная клетка на 3–5 дней для покоя лапы',
+    ],
+    recommendations: [
+      'Добавьте в рацион кормовой мел или ракушку — источник кальция',
+      'Введите премикс с витамином D3 и обеспечьте доступ к солнцу',
+      'Осмотрите лапу руками на наличие ран, наростов, инородных тел',
+      'Отсадите курицу от стада, чтобы избежать травли и дать лапе покой',
+      'Понаблюдайте 2–3 дня — если хромота усиливается, покажите ветеринару',
+    ],
+  },
+  eggs: {
+    inspection: 'Резкое или постепенное прекращение яйцекладки почти всегда связано с одним из трёх факторов: стрессом, освещением или рационом. Прежде чем искать болезнь, стоит спокойно проверить возраст птицы, световой режим курятника и состав корма — в большинстве случаев причина именно здесь.',
+    symptoms: ['Куры едят и ведут себя как обычно, но яиц нет 3+ дней подряд', 'Возраст стада более 1.5 лет (естественный спад яйценоскости)', 'Сократился световой день (осень/зима)', 'Недавно был переезд, смена корма или новые птицы в стаде', 'Возможна частичная линька — выпадение перьев'],
+    causes: [
+      { name: 'Стресс или смена условий содержания', pct: 35, severity: 'medium' },
+      { name: 'Недостаток светового дня', pct: 30, severity: 'medium' },
+      { name: 'Линька (сезонная)', pct: 20, severity: 'low' },
+      { name: 'Нехватка белка или кальция в корме', pct: 15, severity: 'low' },
+    ],
+    homeCare: [
+      'Досвечивание курятника лампой утром и вечером до 14–16 часов светового дня',
+      'Влажные мешанки с зеленью, тёртой морковью и творогом через день',
+      'Кормовой мел или ракушка для восполнения кальция во время линьки',
+      'Спокойная обстановка без резкой смены корма и новых птиц на этой неделе',
+    ],
+    recommendations: [
+      'Обеспечьте 14–16 часов света в сутки, при необходимости — досвечивание лампой',
+      'Проверьте рацион на содержание белка (16–18%) и кальция',
+      'Исключите стрессовые факторы — шум, хищников, резкую смену корма, новых птиц',
+      'Дайте курам 2–3 недели на восстановление после линьки, яйценоскость вернётся сама',
+      'Проверьте наличие чистой воды в достаточном объёме — обезвоживание тоже останавливает кладку',
+      'Если яиц нет дольше 3 недель без видимой причины — обратитесь к ветеринару',
+    ],
+  },
+  vitamin: {
+    inspection: 'Авитаминоз редко проявляется одним симптомом — обычно это сочетание состояния перьев, кожи, суставов и общей активности птицы. Осмотрите стадо в целом: если несколько кур показывают похожие признаки одновременно, вероятнее всего дело в рационе, а не в отдельной болезни одной особи.',
+    symptoms: ['Взъерошенные, тусклые, ломкие перья', 'Общая слабость, вялость, птица подолгу сидит', 'Опухшие суставы или искривление лап у молодняка', 'Задержка роста и набора веса у цыплят', 'Бледный гребень и серёжки', 'Снижение яйценоскости у взрослых кур'],
+    causes: [
+      { name: 'Дефицит витамина A', pct: 40, severity: 'high' },
+      { name: 'Дефицит витамина D3 и кальция', pct: 35, severity: 'medium' },
+      { name: 'Дефицит витаминов группы B', pct: 25, severity: 'low' },
+    ],
+    homeCare: [
+      'Свежая зелень (крапива, люцерна), тёртая морковь и тыква ежедневно в мешанку',
+      'Пророщенное зерно — источник витаминов группы B, через день',
+      'Регулярный выгул на открытом солнце 1–2 часа в день для синтеза D3',
+      'Рыбий жир по несколько капель на голову 2–3 раза в неделю',
+    ],
+    recommendations: [
+      'Введите в рацион свежую зелень, морковь, тыкву — источники витамина A',
+      'Добавьте готовый премикс с витаминами A, D3, E и группы B по инструкции',
+      'Обеспечьте регулярный выгул на солнце для естественного синтеза витамина D3',
+      'Проверьте, не заплесневел ли корм — плесень разрушает витамины и токсична',
+      'Разделите ослабленных птиц от активных, чтобы им не мешали добираться до корма',
+      'Через 2 недели оцените динамику — оперение и активность должны заметно улучшиться',
+    ],
+  },
+  newcastle: {
+    inspection: '⚠️ Описанные симптомы совпадают с признаками болезни Ньюкасла — крайне заразного вирусного заболевания птиц с высокой смертностью. Это не рядовой случай: при подозрении на Ньюкасл важно действовать быстро и не откладывать обращение в ветслужбу, чтобы не потерять всё поголовье.',
+    symptoms: ['Затруднённое дыхание, хрипы, кашель', 'Скручивание шеи, судороги, потеря координации', 'Диарея зеленоватого или водянистого цвета', 'Резкое падение или полная остановка яйценоскости', 'Отёк вокруг глаз и головы', 'Высокая и быстро растущая смертность в стае'],
+    causes: [
+      { name: 'Болезнь Ньюкасла (вирусная)', pct: 65, severity: 'critical' },
+      { name: 'Инфекционный бронхит', pct: 20, severity: 'medium' },
+      { name: 'Отравление или иная бактериальная инфекция', pct: 15, severity: 'low' },
+    ],
+    homeCare: [
+      'Немедленно изолируйте больных птиц в отдельном тёплом сухом помещении',
+      'Обеспечьте свежую воду и лёгкий доступный корм — больная птица часто отказывается от еды',
+      'Продезинфицируйте кормушки, поилки и инвентарь (хлорка или йодный раствор)',
+      'Ограничьте контакт со здоровым поголовьем и не пускайте посторонних в птичник',
+      '⚠️ Это только поддерживающий уход — самолечение здесь опасно, вызов ветврача обязателен',
+    ],
+    recommendations: [
+      'Немедленно изолируйте больных и подозрительных птиц в отдельном помещении',
+      'Свяжитесь с ветеринарной службой района сегодня же — это может быть карантинная инфекция',
+      'Ограничьте перемещение людей, обуви и техники между птичниками',
+      'Не вывозите, не продавайте и не забивайте птицу до заключения ветврача',
+      'Продезинфицируйте инвентарь, кормушки и поилки после консультации с ветврачом',
+      'Сообщите соседним хозяйствам о подозрении — Ньюкасл распространяется быстро',
+    ],
+  },
+};
+
+const INFO = {
+  feed: { title: 'Норма корма для бройлеров', bullets: ['1–7 дней: 15–20 г/гол в сутки (стартовый комбикорм, белок 22–24%)', '8–21 день: 40–60 г/гол в сутки (белок 20–22%)', '22–35 дней: 80–120 г/гол в сутки (белок 18–20%)', '36 дней и старше: 130–160 г/гол в сутки (финишный комбикорм, белок 16–18%)', 'Корм лучше разбивать на 3–4 кормления в день, а не давать всю норму сразу', 'Переход между стартовым, ростовым и финишным кормом делайте постепенно, за 2–3 дня'], note: 'Всегда обеспечивайте свободный доступ к чистой воде — в среднем вдвое больше объёма съеденного корма, особенно в жару.' },
+  subsidy: { title: 'Субсидии МСХ РК 2026', bullets: ['Субсидирование на 1 кг реализованного мяса птицы — фиксированная ставка за килограмм живого веса', 'Возмещение части затрат на оборудование птицефабрик (клеточное содержание, инкубаторы, вентиляция)', 'Льготное кредитование через Аграрную кредитную корпорацию на пополнение оборотных средств', 'Субсидии на удешевление стоимости комбикормов для крупных хозяйств', 'Заявка подаётся через портал Egov или местный акимат, обычно до 1 сентября', 'Для получения нужен статус КХ/ИП и договор с признанным переработчиком'], note: 'Точные ставки и условия ежегодно уточняются — проверяйте актуальные цифры в управлении сельского хозяйства вашей области перед подачей заявки.' },
+  bizplan: { title: 'Бизнес-план птицефабрики', bullets: ['Стартовый капитал нужен на: помещение/реконструкцию, оборудование, поголовье, корма на 2–3 месяца вперёд', 'Окупаемость бройлерного цеха обычно 12–18 месяцев при стабильном сбыте', 'Ключевые статьи расходов: корма (60–70% себестоимости), электроэнергия, ветпрепараты, оплата труда', 'Рекомендуем начать с 500–1000 голов на первый цикл, чтобы оценить реальный спрос и логистику сбыта', 'Заложите резерв 10–15% бюджета на непредвиденное — падёж, скачки цен на корм', 'Продумайте сбыт заранее: рынок, магазины, оптовики — до завоза первой партии птицы'], note: 'Могу составить примерный расчёт под ваше поголовье и регион — просто напишите цифры и цель (мясо/яйцо).' },
+  breeding: { title: 'Селекция бройлеров — кроссы', bullets: ['Cobb 500 — быстрый рост, хорошая конверсия корма, один из самых распространённых кроссов в мире', 'Ross 308 — крепкий иммунитет, стабильный набор веса, популярен в РК у средних хозяйств', 'Hubbard F15 — вынослив к жаре и перепадам температуры, хорош для ЛПХ и небольших ферм', 'Arbor Acres — сбалансированный кросс, неплохо переносит менее строгие условия содержания', 'Кросс определяет не только скорость роста, но и требования к рациону и температуре — уточните у поставщика'], note: 'Для яичного направления используются другие кроссы (Ломан Браун, Хайсекс) — уточните, если вас интересует именно яйценоскость.' },
+};
+
+class Component extends DCLogic {
+  state = { screen: 'empty', messages: [], activeChatId: null, diagnosisOpen: false, activeDiagnosis: null, inputText: '', msgSeq: 1, sidebarOpen: true, darkMode: false, awaitingDiagnosisFor: null, calcHeads: 50, calcAgeId: 'd1', feedCalcOpen: false, feedCalcBirdType: 'broiler', feedCalcAgeValue: 14, feedCalcAgeUnit: 'days', feedCalcHeads: 100, feedCalcPrice: 0, lang: 'ru' };
+
+  toggleLang() { this.setState(s => ({ lang: s.lang === 'ru' ? 'kk' : 'ru' })); }
+
+  toggleSidebar() { this.setState(s => ({ sidebarOpen: !s.sidebarOpen })); }
+  toggleDarkMode() { this.setState(s => ({ darkMode: !s.darkMode })); }
+
+  ornamentBg() {
+    const c = this.state.darkMode
+      ? { wheat: '#f6a06b', leaf: '#b9c79a', op: '0.09' }
+      : { wheat: '#c67139', leaf: '#7a8a5e', op: '0.06' };
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="260" height="260" viewBox="0 0 260 260">'
+      + '<g fill="none" stroke="' + c.wheat + '" stroke-width="1.6" stroke-linecap="round" opacity="' + c.op + '">'
+      + '<line x1="30" y1="20" x2="30" y2="80"/>'
+      + '<ellipse cx="25" cy="30" rx="5" ry="9" transform="rotate(-20 25 30)"/><ellipse cx="35" cy="30" rx="5" ry="9" transform="rotate(20 35 30)"/>'
+      + '<ellipse cx="25" cy="45" rx="5" ry="9" transform="rotate(-20 25 45)"/><ellipse cx="35" cy="45" rx="5" ry="9" transform="rotate(20 35 45)"/>'
+      + '<ellipse cx="25" cy="60" rx="5" ry="9" transform="rotate(-20 25 60)"/><ellipse cx="35" cy="60" rx="5" ry="9" transform="rotate(20 35 60)"/>'
+      + '</g>'
+      + '<g fill="none" stroke="' + c.leaf + '" stroke-width="1.6" opacity="' + c.op + '">'
+      + '<path d="M170 50 C190 55 198 75 185 95 C170 85 165 65 170 50Z"/>'
+      + '<line x1="170" y1="50" x2="185" y2="95"/>'
+      + '</g>'
+      + '<g fill="none" stroke="' + c.wheat + '" stroke-width="1.4" opacity="' + c.op + '">'
+      + '<ellipse cx="70" cy="180" rx="16" ry="21"/>'
+      + '</g>'
+      + '<g fill="none" stroke="' + c.leaf + '" stroke-width="1.4" opacity="' + c.op + '">'
+      + '<path d="M200 180 C215 185 220 200 212 212 C200 215 190 202 200 180Z"/>'
+      + '<path d="M200 180 C198 195 200 205 206 212" stroke-width="1"/>'
+      + '</g>'
+      + '</svg>';
+    return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")';
+  }
+
+  darkThemeVars() {
+    return '--color-accent-onbg:#f6a06b;--color-bg:#2e2b25;--color-surface:#474238;--color-text:#f9f4ed;--color-divider:color-mix(in srgb, #f9f4ed 16%, transparent);--color-neutral-100:#2e2b25;--color-neutral-200:#474238;--color-neutral-300:#645c50;--color-neutral-400:#82796a;--color-neutral-500:#a19786;--color-neutral-600:#c0b6a5;--color-neutral-700:#dcd3c4;--color-neutral-800:#eee7db;--color-neutral-900:#f9f4ed;';
+  }
+
+  nowTime() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  buildDiagnosis(raw) {
+    const causes = raw.causes.map(c => ({ ...c, pctStr: c.pct + '%', barColor: SEV[c.severity].bar, textColor: SEV[c.severity].text, cardBg: SEV[c.severity].bg }));
+    const recommendations = raw.recommendations.map((text, i) => ({ n: i + 1, text }));
+    const homeCare = (raw.homeCare || []).map((text, i) => ({ n: i + 1, text }));
+    return { inspection: raw.inspection, symptoms: raw.symptoms, causes, topCauses: causes.slice(0, 2), recommendations, homeCare };
+  }
+
+  emptyBase() { return { isUser: false, isAssistant: true, kindText: false, kindPhoto: false, kindDiagnosis: false, kindInfo: false, kindTyping: false, kindAnalyzing: false, kindClarify: false, kindCalc: false }; }
+
+  buildAssistantMsg(qid, id) {
+    if (qid === 'feed') {
+      return { id, time: this.nowTime(), ...this.emptyBase(), kindCalc: true };
+    }
+    if (RAW[qid]) {
+      const diag = this.buildDiagnosis(RAW[qid]);
+      const msg = { id, time: this.nowTime(), ...this.emptyBase(), kindDiagnosis: true, diagnosis: diag };
+      msg.openDiagnosis = () => this.openDiagnosis(diag);
+      return msg;
+    }
+    return { id, time: this.nowTime(), ...this.emptyBase(), kindInfo: true, info: INFO[qid] };
+  }
+
+  buildClarifyMsg(id) {
+    return { id, time: this.nowTime(), ...this.emptyBase(), kindClarify: true, clarify: CLARIFY.lame };
+  }
+
+  setCalcAge(id) { this.setState({ calcAgeId: id }); }
+  onCalcHeadsChange(e) { let v = parseInt(e.target.value, 10); if (isNaN(v) || v < 0) v = 0; this.setState({ calcHeads: v }); }
+
+  askQuestion(q) {
+    const uid = this.state.msgSeq;
+    const userMsg = { id: uid, isUser: true, isAssistant: false, kindText: true, kindPhoto: false, kindDiagnosis: false, kindInfo: false, kindTyping: false, kindAnalyzing: false, kindClarify: false, kindCalc: false, kindEggCalc: false, text: q.text, time: this.nowTime() };
+    const typingMsg = { id: uid + 1, ...this.emptyBase(), kindTyping: true };
+    this.setState(s => ({ screen: 'chat', activeChatId: null, messages: [...s.messages, userMsg, typingMsg], msgSeq: uid + 2 }));
+    setTimeout(() => {
+      this.setState(s => {
+        const msgs = s.messages.filter(m => m.id !== typingMsg.id);
+        if (q.id === 'lame') {
+          const assistantMsg = this.buildClarifyMsg(s.msgSeq);
+          return { messages: [...msgs, assistantMsg], msgSeq: s.msgSeq + 1, awaitingDiagnosisFor: 'lame' };
+        }
+        const assistantMsg = this.buildAssistantMsg(q.id, s.msgSeq);
+        return { messages: [...msgs, assistantMsg], msgSeq: s.msgSeq + 1 };
+      });
+    }, 1000);
+  }
+
+  sendPhoto() {
+    const uid = this.state.msgSeq;
+    const userMsg = { id: uid, isUser: true, isAssistant: false, kindText: false, kindPhoto: true, kindDiagnosis: false, kindInfo: false, kindTyping: false, kindAnalyzing: false, kindClarify: false, kindCalc: false, kindEggCalc: false, photoId: 'chat-photo-web-' + uid, time: this.nowTime() };
+    const analyzingMsg = { id: uid + 1, ...this.emptyBase(), kindAnalyzing: true };
+    setTimeout(() => { const el = document.getElementById('chat-photo-web-' + uid); if (el && el.openFilePicker) el.openFilePicker(); }, 120);
+    this.setState(s => ({ screen: 'chat', activeChatId: null, messages: [...s.messages, userMsg, analyzingMsg], msgSeq: uid + 2, awaitingDiagnosisFor: null }));
+    setTimeout(() => {
+      this.setState(s => {
+        const msgs = s.messages.filter(m => m.id !== analyzingMsg.id);
+        const diag = this.buildDiagnosis(RAW.lamePhoto);
+        const assistantMsg = { id: s.msgSeq, time: this.nowTime(), ...this.emptyBase(), kindDiagnosis: true, diagnosis: diag };
+        assistantMsg.openDiagnosis = () => this.openDiagnosis(diag);
+        return { messages: [...msgs, assistantMsg], msgSeq: s.msgSeq + 1 };
+      });
+    }, 2200);
+  }
+
+  sendTypedText() {
+    const text = (this.state.inputText || '').trim();
+    if (!text) return;
+    const uid = this.state.msgSeq;
+    const userMsg = { id: uid, isUser: true, isAssistant: false, kindText: true, kindPhoto: false, kindDiagnosis: false, kindInfo: false, kindTyping: false, kindAnalyzing: false, kindClarify: false, kindCalc: false, kindEggCalc: false, text, time: this.nowTime() };
+    const typingMsg = { id: uid + 1, ...this.emptyBase(), kindTyping: true };
+    this.setState(s => ({ screen: 'chat', activeChatId: null, messages: [...s.messages, userMsg, typingMsg], msgSeq: uid + 2, inputText: '' }));
+    setTimeout(() => {
+      this.setState(s => {
+        const msgs = s.messages.filter(m => m.id !== typingMsg.id);
+        if (s.awaitingDiagnosisFor && RAW[s.awaitingDiagnosisFor]) {
+          const diag = this.buildDiagnosis(RAW[s.awaitingDiagnosisFor]);
+          const assistantMsg = { id: s.msgSeq, time: this.nowTime(), ...this.emptyBase(), kindDiagnosis: true, diagnosis: diag };
+          assistantMsg.openDiagnosis = () => this.openDiagnosis(diag);
+          return { messages: [...msgs, assistantMsg], msgSeq: s.msgSeq + 1, awaitingDiagnosisFor: null };
+        }
+        const assistantMsg = { id: s.msgSeq, time: this.nowTime(), ...this.emptyBase(), kindInfo: true, info: { title: UI[s.lang || 'ru'].goodQuestionTitle, bullets: [UI[s.lang || 'ru'].goodQuestionBullet], note: UI[s.lang || 'ru'].goodQuestionNote } };
+        return { messages: [...msgs, assistantMsg], msgSeq: s.msgSeq + 1 };
+      });
+    }, 900);
+  }
+
+  onInputChange(e) { this.setState({ inputText: e.target.value }); }
+  onInputKeyDown(e) { if (e.key === 'Enter') this.sendTypedText(); }
+  openDiagnosis(diag) { this.setState({ diagnosisOpen: true, activeDiagnosis: diag }); }
+  closeDiagnosis() { this.setState({ diagnosisOpen: false }); }
+  openFeedCalc() { this.setState({ feedCalcOpen: true }); }
+  closeFeedCalc() { this.setState({ feedCalcOpen: false }); }
+  setFeedCalcBirdType(t) { this.setState({ feedCalcBirdType: t }); }
+  setFeedCalcAgeUnit(u) { this.setState({ feedCalcAgeUnit: u }); }
+  onFeedCalcAgeChange(e) { let v = parseInt(e.target.value, 10); if (isNaN(v) || v < 0) v = 0; this.setState({ feedCalcAgeValue: v }); }
+  onFeedCalcHeadsChange(e) { let v = parseInt(e.target.value, 10); if (isNaN(v) || v < 0) v = 0; this.setState({ feedCalcHeads: v }); }
+  onFeedCalcPriceChange(e) { let v = parseFloat(e.target.value); if (isNaN(v) || v < 0) v = 0; this.setState({ feedCalcPrice: v }); }
+
+  feedCalcRange() {
+    const ageDays = this.state.feedCalcAgeUnit === 'weeks' ? this.state.feedCalcAgeValue * 7 : this.state.feedCalcAgeValue;
+    const type = this.state.feedCalcBirdType;
+    if (type === 'layer') return { min: 110, max: 120 };
+    if (type === 'young') {
+      if (ageDays <= 28) return { min: 10, max: 20 };
+      if (ageDays <= 56) return { min: 30, max: 50 };
+      if (ageDays <= 112) return { min: 50, max: 70 };
+      return { min: 70, max: 90 };
+    }
+    if (ageDays <= 7) return { min: 15, max: 20 };
+    if (ageDays <= 21) return { min: 40, max: 60 };
+    if (ageDays <= 35) return { min: 80, max: 120 };
+    return { min: 130, max: 160 };
+  }
+  newChat() { this.setState({ screen: 'empty', messages: [], activeChatId: null, diagnosisOpen: false, feedCalcOpen: false, inputText: '', awaitingDiagnosisFor: null }); }
+
+  loadHistory(chat) {
+    const userMsg = { id: 1, isUser: true, isAssistant: false, kindText: true, kindPhoto: false, kindDiagnosis: false, kindInfo: false, kindTyping: false, kindAnalyzing: false, kindClarify: false, kindCalc: false, kindEggCalc: false, text: chat.title, time: chat.date };
+    const assistantMsg = this.buildAssistantMsg(chat.qid, 2);
+    this.setState({ screen: 'chat', messages: [userMsg, assistantMsg], activeChatId: chat.id, msgSeq: 3, awaitingDiagnosisFor: null });
+  }
+
+  renderVals() {
+    return {
+      isEmpty: this.state.screen === 'empty',
+      isChatScreen: this.state.screen === 'chat',
+      messages: this.state.messages,
+      quickQuestions: QUICK.map((q, i) => ({ ...q, text: this.state.lang === 'kk' ? (q.textKk || q.text) : q.text, delay: (i * 0.06).toFixed(2) + 's', onClick: () => this.askQuestion(q) })),
+      ornamentBg: this.ornamentBg(),
+      historyChats: HISTORY.map(c => ({ ...c, onClick: () => this.loadHistory(c), rowBg: this.state.activeChatId === c.id ? 'var(--color-accent-100)' : 'transparent' })),
+      diagnosisOpen: this.state.diagnosisOpen,
+      activeDiagnosis: this.state.activeDiagnosis || { inspection: '', symptoms: [], causes: [], recommendations: [], homeCare: [] },
+      inputText: this.state.inputText,
+      onInputChange: e => this.onInputChange(e),
+      onInputKeyDown: e => this.onInputKeyDown(e),
+      sendPhoto: () => this.sendPhoto(),
+      sendTypedText: () => this.sendTypedText(),
+      newChat: () => this.newChat(),
+      closeDiagnosis: () => this.closeDiagnosis(),
+      sidebarOpen: this.state.sidebarOpen,
+      sidebarClosed: !this.state.sidebarOpen,
+      sidebarWidth: this.state.sidebarOpen ? '272px' : '0px',
+      toggleSidebar: () => this.toggleSidebar(),
+      assistantName: this.props.assistantName ?? 'Nauryz AI',
+      greeting: this.props.greeting ?? UI[this.state.lang || 'ru'].greetingDefault,
+      useEmojiIcons: this.props.useEmojiIcons ?? true,
+      headerTitle: this.state.screen === 'empty' ? UI[this.state.lang || 'ru'].newChatTitle : (this.state.messages[0] ? this.state.messages[0].text : UI[this.state.lang || 'ru'].newChatTitle),
+      ui: UI[this.state.lang || 'ru'],
+      lang: this.state.lang,
+      toggleLang: () => this.toggleLang(),
+      darkMode: this.state.darkMode,
+      lightModeOn: !this.state.darkMode,
+      toggleDarkMode: () => this.toggleDarkMode(),
+      themeVars: this.state.darkMode ? this.darkThemeVars() : '--color-accent-onbg:#8c491a;',
+      calcHeads: this.state.calcHeads,
+      onCalcHeadsChange: e => this.onCalcHeadsChange(e),
+      calcAgeGroups: AGE_GROUPS.map(g => ({ ...g, bg: g.id === this.state.calcAgeId ? 'var(--color-accent)' : 'var(--color-surface)', fg: g.id === this.state.calcAgeId ? '#fbf4e9' : 'var(--color-text)', onClick: () => this.setCalcAge(g.id) })),
+      calcActiveLabel: (AGE_GROUPS.find(g => g.id === this.state.calcAgeId) || AGE_GROUPS[0]).label,
+      calcActiveProtein: (AGE_GROUPS.find(g => g.id === this.state.calcAgeId) || AGE_GROUPS[0]).protein,
+      calcResultText: (() => {
+        const g = AGE_GROUPS.find(x => x.id === this.state.calcAgeId) || AGE_GROUPS[0];
+        const heads = this.state.calcHeads || 0;
+        if (heads <= 0) return 'Укажите поголовье';
+        const fmt = n => (Math.round(n * 10) / 10).toString().replace('.', ',');
+        return fmt(heads * g.min / 1000) + '–' + fmt(heads * g.max / 1000) + ' кг/сутки';
+      })(),
+      openFeedCalc: () => this.openFeedCalc(),
+      feedCalcOpen: this.state.feedCalcOpen,
+      closeFeedCalc: () => this.closeFeedCalc(),
+      feedCalcBirdTypes: [
+        { id: 'broiler', label: UI[this.state.lang || 'ru'].birdBroiler },
+        { id: 'layer', label: UI[this.state.lang || 'ru'].birdLayer },
+        { id: 'young', label: UI[this.state.lang || 'ru'].birdYoung },
+      ].map(t => ({ ...t, bg: t.id === this.state.feedCalcBirdType ? 'var(--color-accent)' : 'var(--color-surface)', fg: t.id === this.state.feedCalcBirdType ? '#fbf4e9' : 'var(--color-text)', onClick: () => this.setFeedCalcBirdType(t.id) })),
+      feedCalcAgeValue: this.state.feedCalcAgeValue,
+      onFeedCalcAgeChange: e => this.onFeedCalcAgeChange(e),
+      feedCalcAgeUnits: [
+        { id: 'days', label: UI[this.state.lang || 'ru'].unitDays },
+        { id: 'weeks', label: UI[this.state.lang || 'ru'].unitWeeks },
+      ].map(u => ({ ...u, bg: u.id === this.state.feedCalcAgeUnit ? 'var(--color-accent)' : 'var(--color-surface)', fg: u.id === this.state.feedCalcAgeUnit ? '#fbf4e9' : 'var(--color-text)', onClick: () => this.setFeedCalcAgeUnit(u.id) })),
+      feedCalcHeads: this.state.feedCalcHeads,
+      onFeedCalcHeadsChange: e => this.onFeedCalcHeadsChange(e),
+      feedCalcPrice: this.state.feedCalcPrice,
+      onFeedCalcPriceChange: e => this.onFeedCalcPriceChange(e),
+      feedCalcPerHeadText: (() => {
+        const r = this.feedCalcRange();
+        return r.min + '–' + r.max + ' г';
+      })(),
+      feedCalcDailyKgText: (() => {
+        const r = this.feedCalcRange();
+        const avgG = (r.min + r.max) / 2;
+        const heads = this.state.feedCalcHeads || 0;
+        return (Math.round(avgG * heads / 100) / 10).toString().replace('.', ',') + ' кг';
+      })(),
+      feedCalcMonthlyKgText: (() => {
+        const r = this.feedCalcRange();
+        const avgG = (r.min + r.max) / 2;
+        const heads = this.state.feedCalcHeads || 0;
+        return Math.round(avgG * heads * 30 / 1000) + ' кг';
+      })(),
+      feedCalcHasCost: (this.state.feedCalcPrice || 0) > 0,
+      feedCalcCostText: (() => {
+        const r = this.feedCalcRange();
+        const avgG = (r.min + r.max) / 2;
+        const heads = this.state.feedCalcHeads || 0;
+        const monthlyKg = avgG * heads * 30 / 1000;
+        const cost = Math.round(monthlyKg * (this.state.feedCalcPrice || 0));
+        return cost.toLocaleString('ru-RU');
+      })(),
+      feedCalcWaterText: (() => {
+        const r = this.feedCalcRange();
+        const avgG = (r.min + r.max) / 2;
+        const heads = this.state.feedCalcHeads || 0;
+        const dailyKg = avgG * heads / 1000;
+        return (Math.round(dailyKg * 2 * 10) / 10).toString().replace('.', ',') + ' л';
+      })(),
+    };
+  }
+}
+</script>
+</body>
+</html>

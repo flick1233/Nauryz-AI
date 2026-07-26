@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Nauryz AI — Агро-ассистент',
@@ -10,9 +11,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ru">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#0d1a0f" />
+        <meta name="theme-color" content="#f5ead8" />
       </head>
-      <body style={{ margin: 0, background: '#0d1a0f' }}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }

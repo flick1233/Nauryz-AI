@@ -20,7 +20,7 @@ function getSupabase() {
 const MODEL_VISION = process.env.ANTHROPIC_MODEL_VISION || 'claude-sonnet-5';
 const MODEL_TEXT = process.env.ANTHROPIC_MODEL_TEXT || 'claude-haiku-4-5-20251001';
 
-const SYSTEM_PROMPT = `Ты — Nauryz AI, профессиональный агро-ассистент и аналитик для казахстанских фермеров.
+const SYSTEM_PROMPT_BASE = `Ты — Nauryz AI, профессиональный агро-ассистент и аналитик для казахстанских фермеров.
 
 ТВОИ ВОЗМОЖНОСТИ:
 - Диагностика болезней животных по фото и видео
@@ -31,19 +31,23 @@ const SYSTEM_PROMPT = `Ты — Nauryz AI, профессиональный аг
 - Прогнозы и стратегические рекомендации для фермеров Казахстана
 - Информация о субсидиях МСХ РК, ценах на рынке, вспышках болезней
 
-ЯЗЫК: Отвечай на том языке, на котором написан вопрос (казахский, русский, английский).
+ЯЗЫК: Отвечай на том языке, на котором написан вопрос (казахский, русский, английский).`;
 
-ПРИ АНАЛИЗЕ ФОТО ИЛИ ВИДЕО ЖИВОТНОГО / ПТИЧНИКА — отвечай строго в этой структуре:
-
-🔍 ВИЗУАЛЬНЫЙ ОСМОТР: подробно опиши, что видно на фото — оперение/шерсть, поза, глаза, клюв/нос, помёт (цвет, консистенция), состояние подстилки и птичника, поведение между кадрами, если это видео (походка, хромота, вялость).
-
-⚠️ СИМПТОМЫ: маркированный список конкретных отклонений от нормы, которые ты обнаружил.
-
-🩺 ВЕРОЯТНЫЕ ПРИЧИНЫ: перечисли 2-4 наиболее вероятных диагноза/причины по убыванию вероятности, для каждой — короткое обоснование, почему именно эти визуальные признаки на неё указывают. Если картина неоднозначна — честно скажи об этом и укажи, какой диагноз наиболее вероятен, а какие менее.
-
-ДИФФЕРЕНЦИАЛЬНАЯ ДИАГНОСТИКА — типичные ошибки, которых нужно избегать:
+// Общие для текстового и vision-режима правила — найдены на тестовом наборе
+// из 18 случаев (TEST_CASES_DIAGNOSIS.md), подняли точность с 12 до 15 EXACT/18.
+const DIFFERENTIAL_DIAGNOSIS_RULES = `ДИФФЕРЕНЦИАЛЬНАЯ ДИАГНОСТИКА — типичные ошибки, которых нужно избегать:
 - Респираторные симптомы (хрипы, чихание, выделения из носа) НЕ равно автоматически ИЛТ (инфекционный ларинготрахеит). Сверяйся с более специфичными маркерами: запах выделений + отёк морды/периорбитальный отёк → инфекционный коризм; тонкая/деформированная/мягкая скорлупа на фоне респираторки → инфекционный бронхит. ИЛТ ставь основным только при явном кашле с кровью/сгустками, свистящем дыхании с запрокидыванием головы и высокой смертностью за короткий срок — иначе коризм/бронхит приоритетнее.
-- Диарея у молодняка НЕ равно автоматически кокцидиоз или "пастинг" (слипшийся пух вокруг клоаки — это симптом, а не сам диагноз). Сначала явно определи точный возраст: 1-2 недели жизни + белый липкий понос со слипшимся пухом у клоаки → пуллороз (это бактериальная инфекция, не просто механическая закупорка); 3-6 недель + белая водянистая диарея, взъерошенность, дрожь, иммуносупрессия → болезнь Гамборо; кровянистый или водянистый понос в более широком возрастном диапазоне → кокцидиоз. Не останавливайся на первом частом диагнозе — проверь, не укладывается ли возраст в узкий диапазон, характерный для более редкой, но точно определяемой болезни.
+- Диарея у молодняка НЕ равно автоматически кокцидиоз или "пастинг" (слипшийся пух вокруг клоаки — это симптом, а не сам диагноз). Сначала явно определи точный возраст: 1-2 недели жизни + белый липкий понос со слипшимся пухом у клоаки → пуллороз (это бактериальная инфекция, не просто механическая закупорка); 3-6 недель + белая водянистая диарея, взъерошенность, дрожь, иммуносупрессия → болезнь Гамборо; кровянистый или водянистый понос в более широком возрастном диапазоне → кокцидиоз. Не останавливайся на первом частом диагнозе — проверь, не укладывается ли возраст в узкий диапазон, характерный для более редкой, но точно определяемой болезни.`;
+
+const TEXT_FORMAT_INSTRUCTIONS = `ПРИ АНАЛИЗЕ ОПИСАНИЯ СИМПТОМОВ ЖИВОТНОГО — отвечай строго в этой структуре:
+
+🔍 ОСМОТР: подробно перескажи и уточни, что описал фермер.
+
+⚠️ СИМПТОМЫ: маркированный список конкретных отклонений от нормы.
+
+🩺 ВЕРОЯТНЫЕ ПРИЧИНЫ: перечисли 2-4 наиболее вероятных диагноза/причины по убыванию вероятности, для каждой — короткое обоснование. Если картина неоднозначна — честно скажи об этом.
+
+${DIFFERENTIAL_DIAGNOSIS_RULES}
 
 💊 РЕКОМЕНДАЦИИ: конкретные препараты, дозировки, сроки лечения и изоляции; изменения в кормлении/содержании; меры по дезинфекции птичника.
 
@@ -64,6 +68,27 @@ const SYSTEM_PROMPT = `Ты — Nauryz AI, профессиональный аг
 💡 ЧТО ДЕЛАТЬ СЕЙЧАС: практический совет
 
 ВАЖНО: Всегда давай конкретные цифры, дозы, сроки. Избегай общих фраз. Если не знаешь точно — скажи и предложи обратиться к специалисту.`;
+
+// Vision-ответы рендерятся как структурированная карточка диагноза в интерфейсе
+// (design_handoff_nauryz_ai/README.md, раздел 4b) — нужен строгий JSON, не markdown.
+const VISION_JSON_INSTRUCTIONS = `ФОРМАТ ОТВЕТА — только валидный JSON, без markdown-обрамления (без \`\`\`), без текста до или после. Ровно такая структура:
+{
+  "inspection": "подробное описание того, что видно на фото/видео — оперение, поза, глаза, клюв, помёт, подстилка, поведение между кадрами (если видео)",
+  "symptoms": ["конкретный симптом 1", "конкретный симптом 2"],
+  "causes": [{"name": "название диагноза", "pct": 42, "severity": "high"}],
+  "homeCare": ["конкретное действие фермера дома, с дозировкой/сроком"],
+  "recommendations": ["критерий обращения к ветеринару"],
+  "needsVet": true
+}
+
+Правила:
+- causes: 2-4 диагноза по убыванию pct (проценты — условная вероятность, не обязаны давать в сумме 100). severity: "low"|"medium"|"high"|"critical" — critical только для особо опасных контагиозных болезней (например, Ньюкаслская болезнь, птичий грипп).
+- homeCare — то, что фермер может сделать САМ без ветеринара: конкретные препараты, дозы, изоляция, дезинфекция.
+- recommendations — КОГДА и ПОЧЕМУ обязательно нужен очный осмотр ветеринара (тревожные признаки: массовый падёж, кровь, судороги и т.п.), а не общие советы.
+- needsVet — true, если хотя бы один вероятный диагноз требует очного ветеринарного вмешательства.
+- Если на фото не видно животного/птичника или изображение слишком нечёткое для диагностики — верни causes: [] и опиши проблему в inspection, чтобы интерфейс показал "не удалось определить" вместо выдуманного диагноза.
+
+${DIFFERENTIAL_DIAGNOSIS_RULES}`;
 
 // Колонка knowledge_chunks.embedding — vector(384) (см. scripts/ingest-sources.cjs).
 // text-embedding-3-small нативно отдаёт 1536 — без dimensions:384 запрос к match_chunks
@@ -121,6 +146,39 @@ const MODEL_RATES: Record<string, { input: number; output: number; cacheWrite: n
   'claude-haiku-4-5-20251001': { input: 1.0 / 1_000_000, output: 5.0 / 1_000_000, cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000 },
 };
 
+const SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
+
+// Валидирует и нормализует JSON, который вернула модель для vision-ответа, в форму
+// карточки диагноза (design_handoff_nauryz_ai README, buildDiagnosis). Бросает при
+// некорректной форме — вызывающий код в этом случае откатывается к обычному тексту.
+function parseDiagnosisJson(raw: string): {
+  inspection: string; symptoms: string[];
+  causes: { name: string; pct: number; severity: string }[];
+  homeCare: string[]; recommendations: string[]; needsVet: boolean;
+} {
+  const cleaned = raw.trim().replace(/^```(json)?\s*/i, '').replace(/```\s*$/i, '');
+  const data = JSON.parse(cleaned);
+  if (typeof data.inspection !== 'string' || !Array.isArray(data.symptoms) || !Array.isArray(data.causes)) {
+    throw new Error('unexpected diagnosis JSON shape');
+  }
+  const causes = data.causes
+    .map((c: any) => ({
+      name: String(c?.name ?? '').trim(),
+      pct: Math.max(0, Math.min(100, Number(c?.pct) || 0)),
+      severity: SEVERITIES.has(c?.severity) ? c.severity : 'medium',
+    }))
+    .filter((c: any) => c.name)
+    .sort((a: any, b: any) => b.pct - a.pct);
+  return {
+    inspection: data.inspection,
+    symptoms: Array.isArray(data.symptoms) ? data.symptoms.filter((s: any) => typeof s === 'string') : [],
+    causes,
+    homeCare: Array.isArray(data.homeCare) ? data.homeCare.filter((s: any) => typeof s === 'string') : [],
+    recommendations: Array.isArray(data.recommendations) ? data.recommendations.filter((s: any) => typeof s === 'string') : [],
+    needsVet: data.needsVet !== false,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
@@ -132,14 +190,17 @@ export async function POST(req: NextRequest) {
         : lastMessage?.content?.find((c: any) => c.type === 'text')?.text || '';
 
     const hasMedia = lastMessage?.image || lastMessage?.frames;
-    const ragContext = hasMedia ? '' : await searchKnowledge(queryText);
+    // RAG работает и для фото/видео, если фермер приложил текст к снимку
+    // (README раздел 4, пункт 2b) — иначе для чистого фото без текста запрос пустой, RAG пропускаем.
+    const ragContext = queryText ? await searchKnowledge(queryText) : '';
 
     const model = hasMedia ? MODEL_VISION : MODEL_TEXT;
+    const systemPromptText = SYSTEM_PROMPT_BASE + '\n\n' + (hasMedia ? VISION_JSON_INSTRUCTIONS : TEXT_FORMAT_INSTRUCTIONS);
 
     // Статичный промпт кэшируется (ephemeral, ~5 мин TTL) и переиспользуется между запросами
     // всех пользователей — RAG-контекст динамический, поэтому идёт отдельным, некэшируемым блоком.
     const system: Anthropic.Messages.TextBlockParam[] = [
-      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: systemPromptText, cache_control: { type: 'ephemeral' } },
       ...(ragContext ? [{ type: 'text' as const, text: ragContext }] : []),
     ];
 
@@ -182,9 +243,13 @@ export async function POST(req: NextRequest) {
         let outputTokens = 0;
         let cacheCreationTokens = 0;
         let cacheReadTokens = 0;
+        // Vision-ответы — строгий JSON для карточки диагноза: не стримим по токену
+        // (частичный JSON бесполезен интерфейсу), копим целиком и парсим после.
+        let buffered = '';
         for await (const chunk of stream) {
           if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            controller.enqueue(encoder.encode(chunk.delta.text));
+            if (hasMedia) buffered += chunk.delta.text;
+            else controller.enqueue(encoder.encode(chunk.delta.text));
           }
           if (chunk.type === 'message_start') {
             inputTokens = chunk.message.usage.input_tokens;
@@ -192,6 +257,15 @@ export async function POST(req: NextRequest) {
             cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
           }
           if (chunk.type === 'message_delta') outputTokens = chunk.usage.output_tokens;
+        }
+        if (hasMedia) {
+          try {
+            const diagnosis = parseDiagnosisJson(buffered);
+            controller.enqueue(encoder.encode(`\n___DIAGNOSIS___${JSON.stringify(diagnosis)}`));
+          } catch (e) {
+            console.error('[chat] vision JSON parse failed, falling back to raw text:', (e as Error).message, buffered.slice(0, 300));
+            controller.enqueue(encoder.encode(buffered));
+          }
         }
         const costUsd =
           inputTokens * rates.input +
