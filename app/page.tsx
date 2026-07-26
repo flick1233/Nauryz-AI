@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Menu, Plus, Camera, Mic, Send, X, Square, Globe, Calculator } from 'lucide-react';
+import { Menu, Plus, Camera, Mic, Send, X, Square, Globe, Calculator, ChevronLeft } from 'lucide-react';
 import './nauryz.css';
 
 interface ImageData { data: string; mediaType: string; preview: string }
@@ -69,6 +69,17 @@ function feedCalcRange(birdType: BirdType, ageValue: number, ageUnit: 'days' | '
   return { min: 130, max: 160 };
 }
 function fmtRu(n: number) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
+
+const MONTHS_RU = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+function formatChatDate(d: Date) {
+  const now = new Date();
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, now)) return `Сегодня, ${time}`;
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d, yesterday)) return `Вчера, ${time}`;
+  return `${d.getDate()} ${MONTHS_RU[d.getMonth()]}`;
+}
 
 // Логотип-росток из design-handoff (Nauryz AI - Web.dc.html) — воспроизведён как есть, не заменён на Lucide.
 function Logo({ size = 20, strokeWidth = 2.5 }: { size?: number; strokeWidth?: number }) {
@@ -563,7 +574,7 @@ export default function NauryzAI() {
               <div className="sb-brand-name">Nauryz AI</div>
               <div className="sb-brand-sub">Агро-ассистент</div>
             </div>
-            <button className="sb-hide-btn" onClick={() => setSidebarOpen(false)} aria-label="Скрыть историю"><Menu size={16} strokeWidth={2.75} /></button>
+            <button className="sb-hide-btn" onClick={() => setSidebarOpen(false)} aria-label="Скрыть историю"><ChevronLeft size={16} strokeWidth={2.75} /></button>
           </div>
 
           <button className="sb-new" onClick={createNewChat}><Plus size={14} strokeWidth={2.75} />Новый чат</button>
@@ -571,13 +582,17 @@ export default function NauryzAI() {
           <div className="sb-section-label">История</div>
           <div className="sb-chats">
             {chats.length === 0 && <div style={{ padding: '12px 10px', fontSize: 11, color: 'var(--color-neutral-500)', textAlign: 'center' }}>Нет чатов</div>}
-            {chats.slice().reverse().map(chat => (
-              <div key={chat.id} className={`chat-row ${chat.id === activeChatId ? 'act' : ''}`} onClick={() => switchChat(chat.id)}>
-                <div className="chat-row-title">{chat.title}</div>
-                <div className="chat-row-snippet">{chat.messages[chat.messages.length - 1]?.content.slice(0, 40) || ''}</div>
-                <button className="chat-del" onClick={e => deleteChat(chat.id, e)} aria-label="Удалить чат"><X size={12} strokeWidth={2.75} /></button>
-              </div>
-            ))}
+            {chats.slice().reverse().map(chat => {
+              const lastMsg = chat.messages[chat.messages.length - 1];
+              return (
+                <div key={chat.id} className={`chat-row ${chat.id === activeChatId ? 'act' : ''}`} onClick={() => switchChat(chat.id)}>
+                  <div className="chat-row-title">{chat.title}</div>
+                  <div className="chat-row-snippet">{lastMsg?.diagnosis?.inspection.slice(0, 40) || lastMsg?.content.slice(0, 40) || ''}</div>
+                  <div className="chat-row-date">{formatChatDate(chat.createdAt)}</div>
+                  <button className="chat-del" onClick={e => deleteChat(chat.id, e)} aria-label="Удалить чат"><X size={12} strokeWidth={2.75} /></button>
+                </div>
+              );
+            })}
           </div>
 
           <div className="sb-footer">

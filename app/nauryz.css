@@ -30,6 +30,7 @@
 .chat-row.act { background: var(--color-accent-100); }
 .chat-row-title { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 18px; }
 .chat-row-snippet { font-size: 11px; color: var(--color-neutral-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-row-date { font-size: 10px; color: var(--color-neutral-500); }
 .chat-del { position: absolute; top: 8px; right: 8px; opacity: 0; background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 2px; border-radius: 4px; display: flex; }
 .chat-row:hover .chat-del { opacity: 1; }
 .chat-del:hover { color: var(--color-accent-700); }
@@ -208,8 +209,15 @@
 
 .sb-overlay { display: none; }
 @media (max-width: 767px) {
-  .sidebar { position: fixed; z-index: 100; height: 100dvh; top: 0; left: 0; box-shadow: var(--shadow-lg); }
-  .sb-overlay { display: block; position: fixed; inset: 0; z-index: 99; background: rgba(0,0,0,.3); }
+  /* Полноэкранный дровер вместо десктопного width-коллапса: слайд по transform
+     (симметричный аналог drawerIn .24s из прототипа, но реверсивный на закрытии). */
+  .sidebar {
+    position: fixed; z-index: 100; top: 0; left: 0; height: 100dvh;
+    width: 100vw; min-width: 0; box-shadow: var(--shadow-lg);
+    transform: translateX(0); transition: transform .24s ease;
+  }
+  .sidebar.closed { width: 100vw; min-width: 0; padding: 20px 16px; transform: translateX(-100%); box-shadow: none; }
+  .sb-overlay { display: none; } /* сайдбар теперь на весь экран, дублирующий бэкдроп не нужен */
   .quick-grid { grid-template-columns: 1fr 1fr; }
   .bubble-col { max-width: 88%; }
   .feed-inner { padding: 0 14px; gap: 12px; }
