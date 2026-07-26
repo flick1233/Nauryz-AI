@@ -39,7 +39,25 @@ const DIFFERENTIAL_DIAGNOSIS_RULES = `ДИФФЕРЕНЦИАЛЬНАЯ ДИАГ�
 - Респираторные симптомы (хрипы, чихание, выделения из носа) НЕ равно автоматически ИЛТ (инфекционный ларинготрахеит). Сверяйся с более специфичными маркерами: запах выделений + отёк морды/периорбитальный отёк → инфекционный коризм; тонкая/деформированная/мягкая скорлупа на фоне респираторки → инфекционный бронхит. ИЛТ ставь основным только при явном кашле с кровью/сгустками, свистящем дыхании с запрокидыванием головы и высокой смертностью за короткий срок — иначе коризм/бронхит приоритетнее.
 - Диарея у молодняка НЕ равно автоматически кокцидиоз или "пастинг" (слипшийся пух вокруг клоаки — это симптом, а не сам диагноз). Сначала явно определи точный возраст: 1-2 недели жизни + белый липкий понос со слипшимся пухом у клоаки → пуллороз (это бактериальная инфекция, не просто механическая закупорка); 3-6 недель + белая водянистая диарея, взъерошенность, дрожь, иммуносупрессия → болезнь Гамборо; кровянистый или водянистый понос в более широком возрастном диапазоне → кокцидиоз. Не останавливайся на первом частом диагнозе — проверь, не укладывается ли возраст в узкий диапазон, характерный для более редкой, но точно определяемой болезни.`;
 
-const TEXT_FORMAT_INSTRUCTIONS = `ПРИ АНАЛИЗЕ ОПИСАНИЯ СИМПТОМОВ ЖИВОТНОГО — отвечай строго в этой структуре:
+// TASK_DESIGN_IMPLEMENTATION.md, п.4: "Курица хромает" → сначала уточняющие вопросы про
+// возраст/ногу/позу/условия, а не мгновенный диагноз — это реальное поведение бэкенда,
+// не заскриптованное в дизайне. Модель сама решает, хватает ли деталей; если нет — отвечает
+// JSON вместо обычной markdown-структуры (см. buildClarifyMsg в прототипе за форму данных).
+const CLARIFY_JSON_INSTRUCTIONS = `ЕСЛИ ВОПРОС КАСАЕТСЯ ЗДОРОВЬЯ ЖИВОТНОГО, но в описании не хватает ключевых деталей для уверенного диагноза (возраст животного, какая именно нога/часть тела/симптом, как давно началось, условия содержания) — НЕ угадывай диагноз. Вместо обычного текстового ответа верни ТОЛЬКО валидный JSON (без markdown, без \`\`\`, без текста до/после) в такой структуре:
+{
+  "type": "clarify",
+  "title": "короткий заголовок проблемы, напр. 'Хромота у курицы — срочная диагностика'",
+  "intro": "1-2 предложения: почему важны детали, что нужно уточнить или прислать фото/видео",
+  "groups": [{"heading": "напр. Возраст птицы", "itemsText": "конкретные варианты/вопросы одной строкой"}],
+  "causesPreview": ["Диагноз 1 — краткий узнаваемый признак", "Диагноз 2 — краткий признак"],
+  "closing": "призыв прислать фото/видео или ответить текстом на вопросы выше"
+}
+Дай 3-5 groups (возраст, локализация симптома, поза/поведение, другие признаки, условия содержания — адаптируй под тему) и 3-5 causesPreview (вероятные направления по убыванию вероятности).
+Если деталей УЖЕ достаточно (или тема не про здоровье животного, например экономика/тренды/субсидии) — НЕ используй JSON, отвечай обычным текстом в структуре ниже.`;
+
+const TEXT_FORMAT_INSTRUCTIONS = `${CLARIFY_JSON_INSTRUCTIONS}
+
+ПРИ АНАЛИЗЕ ОПИСАНИЯ СИМПТОМОВ ЖИВОТНОГО (когда деталей достаточно) — отвечай строго в этой структуре:
 
 🔍 ОСМОТР: подробно перескажи и уточни, что описал фермер.
 
@@ -179,6 +197,28 @@ function parseDiagnosisJson(raw: string): {
   };
 }
 
+// Уточняющие вопросы (текстовый чат) — модель сама решает выдавать ли это вместо
+// обычной markdown-структуры, см. CLARIFY_JSON_INSTRUCTIONS.
+function parseClarifyJson(raw: string): {
+  title: string; intro: string; groups: { heading: string; itemsText: string }[];
+  causesPreview: string[]; closing: string;
+} {
+  const cleaned = raw.trim().replace(/^```(json)?\s*/i, '').replace(/```\s*$/i, '');
+  const data = JSON.parse(cleaned);
+  if (data.type !== 'clarify' || typeof data.title !== 'string' || !Array.isArray(data.groups)) {
+    throw new Error('unexpected clarify JSON shape');
+  }
+  return {
+    title: data.title,
+    intro: typeof data.intro === 'string' ? data.intro : '',
+    groups: data.groups
+      .map((g: any) => ({ heading: String(g?.heading ?? '').trim(), itemsText: String(g?.itemsText ?? '').trim() }))
+      .filter((g: any) => g.heading && g.itemsText),
+    causesPreview: Array.isArray(data.causesPreview) ? data.causesPreview.filter((s: any) => typeof s === 'string') : [],
+    closing: typeof data.closing === 'string' ? data.closing : '',
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
@@ -245,11 +285,34 @@ export async function POST(req: NextRequest) {
         let cacheReadTokens = 0;
         // Vision-ответы — строгий JSON для карточки диагноза: не стримим по токену
         // (частичный JSON бесполезен интерфейсу), копим целиком и парсим после.
+        // Текст обычно стримится как есть, НО модель может вместо этого решить выдать
+        // JSON с уточняющими вопросами (CLARIFY_JSON_INSTRUCTIONS) — поэтому придерживаем
+        // самые первые символы, чтобы понять формат, и либо сразу отпускаем накопленное
+        // в обычный поток, либо молча копим до конца для парсинга как JSON.
         let buffered = '';
+        let jsonModeDecided = false;
+        let isJsonMode = false;
         for await (const chunk of stream) {
           if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            if (hasMedia) buffered += chunk.delta.text;
-            else controller.enqueue(encoder.encode(chunk.delta.text));
+            const text = chunk.delta.text;
+            if (hasMedia) {
+              buffered += text;
+            } else if (!jsonModeDecided) {
+              buffered += text;
+              const trimmed = buffered.trimStart();
+              // Ждём достаточно символов, чтобы отличить {"..." от ```json\n{"... — модель
+              // иногда оборачивает JSON в code fence вопреки явной инструкции не делать этого
+              // (найдено на "Курица хромает" — весь clarify-ответ приходил как ```json\n{...).
+              if (trimmed.length >= 15) {
+                jsonModeDecided = true;
+                isJsonMode = trimmed.replace(/^```(json)?\s*/i, '').startsWith('{');
+                if (!isJsonMode) controller.enqueue(encoder.encode(buffered));
+              }
+            } else if (isJsonMode) {
+              buffered += text;
+            } else {
+              controller.enqueue(encoder.encode(text));
+            }
           }
           if (chunk.type === 'message_start') {
             inputTokens = chunk.message.usage.input_tokens;
@@ -266,6 +329,18 @@ export async function POST(req: NextRequest) {
             console.error('[chat] vision JSON parse failed, falling back to raw text:', (e as Error).message, buffered.slice(0, 300));
             controller.enqueue(encoder.encode(buffered));
           }
+        } else if (isJsonMode) {
+          try {
+            const clarify = parseClarifyJson(buffered);
+            controller.enqueue(encoder.encode(`\n___CLARIFY___${JSON.stringify(clarify)}`));
+          } catch (e) {
+            console.error('[chat] clarify JSON parse failed, falling back to raw text:', (e as Error).message, buffered.slice(0, 300));
+            controller.enqueue(encoder.encode(buffered));
+          }
+        } else if (!jsonModeDecided && buffered) {
+          // Стрим закончился, а решение о формате так и не приняли (буфер был весь
+          // из пробелов) — на всякий случай отдать накопленное, а не потерять его.
+          controller.enqueue(encoder.encode(buffered));
         }
         const costUsd =
           inputTokens * rates.input +

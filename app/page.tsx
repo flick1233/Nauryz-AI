@@ -11,10 +11,13 @@ interface DiagnosisData {
   inspection: string; symptoms: string[]; causes: Cause[];
   homeCare: string[]; recommendations: string[]; needsVet: boolean;
 }
+interface ClarifyGroup { heading: string; itemsText: string }
+interface ClarifyData { title: string; intro: string; groups: ClarifyGroup[]; causesPreview: string[]; closing: string }
 interface Message {
   id: string; role: 'user' | 'assistant'; content: string;
   image?: ImageData; frames?: ImageData[]; videoPreview?: string;
   diagnosis?: DiagnosisData;
+  clarify?: ClarifyData;
   isCalcCard?: boolean;
   costUsd?: number; timestamp: Date;
 }
@@ -89,7 +92,7 @@ interface UiDict {
   ariaHideHistory: string; ariaShowHistory: string; ariaClose: string; ariaRemove: string; ariaStop: string; ariaSend: string; ariaDeleteChat: string; ariaTheme: string;
   newChat: string; newChatTitle: string; chatFallback: string; historySection: string; noChats: string; farmer: string;
   searchOn: string; searchOff: string; feedCalcBtn: string;
-  tagInspection: string; tagSymptoms: string; tagCauses: string; detailBtn: string;
+  tagInspection: string; tagSymptoms: string; tagCauses: string; detailBtn: string; tagClarify: string; probableDirections: string;
   diagnosisTitle: string; causesHeading: string; homeCareHeading: string; vetHeading: string; doneSaveBtn: string;
   inlineCalcTitle: string; calcAgeLabel: string; calcHeadsLabel: string; calcResultPrefix: string; calcProteinLabel: string; calcWaterNote: string; calcHeadsShort: string;
   feedCalcTitle: string; birdTypeLabel: string; ageLabel: string; headsLabel: string; priceLabel: string; pricePlaceholder: string;
@@ -106,7 +109,7 @@ const UI: Record<'ru' | 'kk', UiDict> = {
     ariaHideHistory: 'Скрыть историю', ariaShowHistory: 'Показать историю', ariaClose: 'Закрыть', ariaRemove: 'Убрать', ariaStop: 'Остановить', ariaSend: 'Отправить', ariaDeleteChat: 'Удалить чат', ariaTheme: 'Тема',
     newChat: 'Новый чат', newChatTitle: 'Новый чат', chatFallback: 'Чат', historySection: 'История', noChats: 'Нет чатов', farmer: 'Фермер',
     searchOn: 'Поиск ВКЛ', searchOff: 'Поиск ВЫКЛ', feedCalcBtn: 'Калькулятор нормы корма',
-    tagInspection: 'Осмотр', tagSymptoms: 'Симптомы', tagCauses: 'Вероятные причины', detailBtn: 'Подробный разбор →',
+    tagInspection: 'Осмотр', tagSymptoms: 'Симптомы', tagCauses: 'Вероятные причины', detailBtn: 'Подробный разбор →', tagClarify: 'Уточняющие вопросы', probableDirections: '⚠️ Вероятные направления',
     diagnosisTitle: 'Результат диагностики', causesHeading: 'Возможные причины', homeCareHeading: '🏠 Лечение в домашних условиях', vetHeading: 'Когда обращаться к ветеринару', doneSaveBtn: 'Понятно, сохранить в историю',
     inlineCalcTitle: '🧮 Калькулятор корма для бройлеров', calcAgeLabel: 'Возраст птицы', calcHeadsLabel: 'Поголовье (голов)', calcResultPrefix: 'Суточная норма для', calcProteinLabel: 'Белок в корме:', calcWaterNote: 'Вода нужна примерно вдвое больше объёма корма, особенно в жару.', calcHeadsShort: 'гол.',
     feedCalcTitle: 'Калькулятор нормы корма', birdTypeLabel: 'Тип птицы', ageLabel: 'Возраст', headsLabel: 'Количество голов', priceLabel: 'Цена корма за кг, ₸ (необязательно)', pricePlaceholder: 'Например, 250',
@@ -121,7 +124,7 @@ const UI: Record<'ru' | 'kk', UiDict> = {
     ariaHideHistory: 'Тарихты жасыру', ariaShowHistory: 'Тарихты көрсету', ariaClose: 'Жабу', ariaRemove: 'Алып тастау', ariaStop: 'Тоқтату', ariaSend: 'Жіберу', ariaDeleteChat: 'Чатты жою', ariaTheme: 'Тақырып',
     newChat: 'Жаңа чат', newChatTitle: 'Жаңа чат', chatFallback: 'Чат', historySection: 'Тарих', noChats: 'Чаттар жоқ', farmer: 'Фермер',
     searchOn: 'Іздеу ҚОСУЛЫ', searchOff: 'Іздеу ӨШІРУЛІ', feedCalcBtn: 'Жем нормасының калькуляторы',
-    tagInspection: 'Қарау', tagSymptoms: 'Белгілер', tagCauses: 'Ықтимал себептер', detailBtn: 'Толық талдау →',
+    tagInspection: 'Қарау', tagSymptoms: 'Белгілер', tagCauses: 'Ықтимал себептер', detailBtn: 'Толық талдау →', tagClarify: 'Нақтылау сұрақтары', probableDirections: '⚠️ Ықтимал бағыттар',
     diagnosisTitle: 'Диагностика нәтижесі', causesHeading: 'Ықтимал себептер', homeCareHeading: '🏠 Үй жағдайында емдеу', vetHeading: 'Ветеринарға қашан жүгіну керек', doneSaveBtn: 'Түсінікті, тарихқа сақтау',
     inlineCalcTitle: '🧮 Бройлерге арналған жем калькуляторы', calcAgeLabel: 'Құстың жасы', calcHeadsLabel: 'Бас саны', calcResultPrefix: 'Тәуліктік норма', calcProteinLabel: 'Жемдегі белок:', calcWaterNote: 'Су жемнің көлемінен шамамен екі есе көп қажет, әсіресе ысықта.', calcHeadsShort: 'бас',
     feedCalcTitle: 'Жем нормасының калькуляторы', birdTypeLabel: 'Құс түрі', ageLabel: 'Жасы', headsLabel: 'Бас саны', priceLabel: 'Жемнің 1 кг бағасы, ₸ (міндетті емес)', pricePlaceholder: 'Мысалы, 250',
@@ -283,6 +286,35 @@ function DiagnosisModal({ diagnosis, onClose, ui }: { diagnosis: DiagnosisData; 
           <button className="sb-new" style={{ width: 'auto', padding: '10px 20px' }} onClick={onClose}>{ui.doneSaveBtn}</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Уточняющие вопросы вместо мгновенного диагноза при неполном описании симптомов
+// (TASK_DESIGN_IMPLEMENTATION.md п.4 — реальное поведение бэкенда, см. CLARIFY_JSON_INSTRUCTIONS
+// в app/api/chat/route.ts). Ответ пользователя на эти вопросы — обычное следующее сообщение
+// в том же чате; модель сама увидит, что деталей достаточно, и даст обычный markdown-разбор.
+function ClarifyCard({ clarify, ui }: { clarify: ClarifyData; ui: UiDict }) {
+  return (
+    <div className="diag-card">
+      <span className="tag tag-accent">{ui.tagClarify}</span>
+      <div className="calc-card-title" style={{ fontSize: 16 }}>{clarify.title}</div>
+      <div className="diag-text">{clarify.intro}</div>
+      {clarify.groups.map((g, i) => (
+        <div key={i}>
+          <div className="clarify-group-heading">{g.heading}</div>
+          <div className="diag-text">{g.itemsText}</div>
+        </div>
+      ))}
+      {clarify.causesPreview.length > 0 && (
+        <>
+          <div className="clarify-group-heading">{ui.probableDirections}</div>
+          <div className="clarify-causes-preview">
+            {clarify.causesPreview.map((c, i) => <div key={i}>• {c}</div>)}
+          </div>
+        </>
+      )}
+      <div className="clarify-closing">{clarify.closing}</div>
     </div>
   );
 }
@@ -607,20 +639,32 @@ export default function NauryzAI() {
         const { done, value } = await reader.read(); if (done) break;
         text2 += dec.decode(value, { stream: true });
         const di = text2.indexOf('\n___DIAGNOSIS___');
+        const cli = text2.indexOf('\n___CLARIFY___');
         const ci = text2.indexOf('\n___COST___');
-        const cut = di >= 0 ? di : ci;
+        const markers = [di, cli, ci].filter(i => i >= 0);
+        const cut = markers.length ? Math.min(...markers) : -1;
         setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: cut >= 0 ? text2.slice(0, cut) : text2 } : m));
       }
       const di = text2.indexOf('\n___DIAGNOSIS___');
+      const cli = text2.indexOf('\n___CLARIFY___');
       const ci = text2.indexOf('\n___COST___');
+      const afterMarker = (start: number) => {
+        const following = [di, cli, ci].filter(i => i > start);
+        return following.length ? Math.min(...following) : undefined;
+      };
       let diagnosis: DiagnosisData | undefined;
       if (di >= 0) {
-        try { diagnosis = JSON.parse(text2.slice(di + '\n___DIAGNOSIS___'.length, ci >= 0 ? ci : undefined)); } catch {}
+        try { diagnosis = JSON.parse(text2.slice(di + '\n___DIAGNOSIS___'.length, afterMarker(di))); } catch {}
       }
-      const plainContent = text2.slice(0, di >= 0 ? di : (ci >= 0 ? ci : undefined));
+      let clarify: ClarifyData | undefined;
+      if (cli >= 0) {
+        try { clarify = JSON.parse(text2.slice(cli + '\n___CLARIFY___'.length, afterMarker(cli))); } catch {}
+      }
+      const firstMarker = [di, cli, ci].filter(i => i >= 0);
+      const plainContent = text2.slice(0, firstMarker.length ? Math.min(...firstMarker) : undefined);
       if (ci >= 0) { try { const { costUsd } = JSON.parse(text2.slice(ci + '\n___COST___'.length)); setMessages(prev => prev.map(m => m.id === aid ? { ...m, costUsd } : m)); setSessionCost(p => p + costUsd); } catch {} }
-      setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: plainContent, diagnosis } : m));
-      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...newMsgs, { id: aid, role: 'assistant' as const, content: plainContent, diagnosis, timestamp: new Date() }] } : c));
+      setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: plainContent, diagnosis, clarify } : m));
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...newMsgs, { id: aid, role: 'assistant' as const, content: plainContent, diagnosis, clarify, timestamp: new Date() }] } : c));
     } catch (err: any) {
       if (err.name !== 'AbortError') setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '❌ Ошибка. Проверьте API ключ.', timestamp: new Date() }]);
     } finally { setIsLoading(false); setAbortController(null); }
@@ -769,6 +813,8 @@ export default function NauryzAI() {
                           </>
                         ) : msg.diagnosis ? (
                           <DiagnosisCard diagnosis={msg.diagnosis} onOpen={() => setActiveDiagnosis(msg.diagnosis!)} ui={ui} />
+                        ) : msg.clarify ? (
+                          <ClarifyCard clarify={msg.clarify} ui={ui} />
                         ) : msg.isCalcCard ? (
                           <InlineCalcCard ageId={calcAgeId} heads={calcHeads} onAgeChange={setCalcAgeId} onHeadsChange={setCalcHeads} ui={ui} />
                         ) : msg.content === '' && isLoading && msg.id === lastMsg?.id ? (
