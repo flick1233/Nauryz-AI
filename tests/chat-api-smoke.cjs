@@ -23,7 +23,9 @@ const { readFileSync } = require('node:fs');
       const timer = setInterval(() => event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Streaming a local test answer. ' } }), 100);
       res.on('close', () => { clearInterval(timer); cancelled = true; }); return;
     }
-    event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Local SDK integration answer.' } });
+    for (const text of ['Local ', 'SDK ', 'integration ', 'answer.']) {
+      event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } });
+    }
     event({ type: 'content_block_stop', index: 0 });
     event({ type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 8 } });
     event({ type: 'message_stop' }); res.end();
@@ -43,6 +45,10 @@ const { readFileSync } = require('node:fs');
     const reply = await send([{ role: 'user', content: 'old photo', image: media }, { role: 'assistant', content: 'old finding' }, { role: 'user', content: 'followup' }], true);
     assert.equal(reply.status, 200);
     const text = await reply.text(); assert.match(text, /Local SDK integration answer/); assert.match(text, /___COST___/);
+    assert.equal(text.split('\n___COST___')[0], 'Local SDK integration answer.');
+    const prompt = calls[0].system.map(block => block.text).join('\n');
+    assert.match(prompt, /левая, правая или обе/);
+    assert.match(prompt, /causesPreview оставь пустым/);
     const usage = JSON.parse(text.split('\n___COST___')[1]); assert.equal(usage.inputTokens, 20); assert.equal(usage.outputTokens, 8);
     assert.equal(calls[0].tools[0].max_uses, 1);
     assert.equal(calls[0].model, 'claude-haiku-4-5-20251001');

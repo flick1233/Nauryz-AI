@@ -110,7 +110,7 @@ const UI: Record<'ru' | 'kk', UiDict> = {
     inputPlaceholder: 'Опиши проблему или задай вопрос…', recording: 'Запись…', photoBtn: 'Фото', voiceBtn: 'Голос',
     ariaHideHistory: 'Скрыть историю', ariaShowHistory: 'Показать историю', ariaClose: 'Закрыть', ariaRemove: 'Убрать', ariaStop: 'Остановить', ariaSend: 'Отправить', ariaDeleteChat: 'Удалить чат', ariaTheme: 'Тема',
     newChat: 'Новый чат', newChatTitle: 'Новый чат', chatFallback: 'Чат', historySection: 'История', noChats: 'Нет чатов', farmer: 'Фермер',
-    searchOn: 'Интернет включён', searchOff: 'Без интернета', feedCalcBtn: 'Калькулятор нормы корма',
+    searchOn: 'Веб-поиск включён', searchOff: 'Веб-поиск выключен', feedCalcBtn: 'Калькулятор нормы корма',
     tagInspection: 'Осмотр', tagSymptoms: 'Симптомы', tagCauses: 'Вероятные причины', detailBtn: 'Подробный разбор →', tagClarify: 'Уточняющие вопросы', probableDirections: '⚠️ Вероятные направления',
     diagnosisTitle: 'Предварительная оценка', causesHeading: 'Возможные причины', homeCareHeading: '🏠 Уход до осмотра ветеринаром', vetHeading: 'Когда обращаться к ветеринару', doneSaveBtn: 'Понятно, сохранить в историю',
     inlineCalcTitle: '🧮 Калькулятор корма для бройлеров', calcAgeLabel: 'Возраст птицы', calcHeadsLabel: 'Поголовье (голов)', calcResultPrefix: 'Суточная норма для', calcProteinLabel: 'Белок в корме:', calcWaterNote: 'Вода нужна примерно вдвое больше объёма корма, особенно в жару.', calcHeadsShort: 'гол.',
@@ -125,7 +125,7 @@ const UI: Record<'ru' | 'kk', UiDict> = {
     inputPlaceholder: 'Мәселені сипаттаңыз немесе сұрақ қойыңыз…', recording: 'Жазылуда…', photoBtn: 'Фото', voiceBtn: 'Дауыс',
     ariaHideHistory: 'Тарихты жасыру', ariaShowHistory: 'Тарихты көрсету', ariaClose: 'Жабу', ariaRemove: 'Алып тастау', ariaStop: 'Тоқтату', ariaSend: 'Жіберу', ariaDeleteChat: 'Чатты жою', ariaTheme: 'Тақырып',
     newChat: 'Жаңа чат', newChatTitle: 'Жаңа чат', chatFallback: 'Чат', historySection: 'Тарих', noChats: 'Чаттар жоқ', farmer: 'Фермер',
-    searchOn: 'Іздеу ҚОСУЛЫ', searchOff: 'Іздеу ӨШІРУЛІ', feedCalcBtn: 'Жем нормасының калькуляторы',
+    searchOn: 'Веб-іздеу қосулы', searchOff: 'Веб-іздеу өшірулі', feedCalcBtn: 'Жем нормасының калькуляторы',
     tagInspection: 'Қарау', tagSymptoms: 'Белгілер', tagCauses: 'Ықтимал себептер', detailBtn: 'Толық талдау →', tagClarify: 'Нақтылау сұрақтары', probableDirections: '⚠️ Ықтимал бағыттар',
     diagnosisTitle: 'Алдын ала бағалау', causesHeading: 'Ықтимал себептер', homeCareHeading: '🏠 Ветеринарға дейінгі күтім', vetHeading: 'Ветеринарға қашан жүгіну керек', doneSaveBtn: 'Түсінікті, тарихқа сақтау',
     inlineCalcTitle: '🧮 Бройлерге арналған жем калькуляторы', calcAgeLabel: 'Құстың жасы', calcHeadsLabel: 'Бас саны', calcResultPrefix: 'Тәуліктік норма', calcProteinLabel: 'Жемдегі белок:', calcWaterNote: 'Су жемнің көлемінен шамамен екі есе көп қажет, әсіресе ысықта.', calcHeadsShort: 'бас',
@@ -470,6 +470,7 @@ function renderMarkdown(text: string) {
   const result: React.ReactNode[] = [];
   let i = 0;
   while (i < lines.length) {
+    const blockKey = i; // Stable start line; consuming a block must not reuse the next block's key.
     const line = lines[i];
     if (i + 1 < lines.length && lines[i + 1].match(/^\|[-: |]+\|$/)) {
       const tl: string[] = [];
@@ -477,7 +478,7 @@ function renderMarkdown(text: string) {
       const rows = tl.map(l => l.split('|').filter((_, x, a) => x > 0 && x < a.length - 1).map(c => c.trim()));
       const [hdr, , ...body] = rows;
       result.push(
-        <div key={result.length} className="md-table-wrap">
+        <div key={blockKey} className="md-table-wrap">
           <table className="md-table">
             <thead><tr>{hdr.map((c, j) => <th key={j}>{inlineMd(c)}</th>)}</tr></thead>
             <tbody>{body.map((r, ri) => <tr key={ri}>{r.map((c, ci) => <td key={ci}>{inlineMd(c)}</td>)}</tr>)}</tbody>
@@ -485,24 +486,24 @@ function renderMarkdown(text: string) {
         </div>
       ); continue;
     }
-    if (line.startsWith('# ')) result.push(<h1 key={i} className="md-h1">{inlineMd(line.slice(2))}</h1>);
-    else if (line.startsWith('## ')) result.push(<h2 key={i} className="md-h2">{inlineMd(line.slice(3))}</h2>);
-    else if (line.startsWith('### ')) result.push(<h3 key={i} className="md-h3">{inlineMd(line.slice(4))}</h3>);
-    else if (line.match(/^---+$/)) result.push(<hr key={i} className="md-hr" />);
+    if (line.startsWith('# ')) result.push(<h1 key={blockKey} className="md-h1">{inlineMd(line.slice(2))}</h1>);
+    else if (line.startsWith('## ')) result.push(<h2 key={blockKey} className="md-h2">{inlineMd(line.slice(3))}</h2>);
+    else if (line.startsWith('### ')) result.push(<h3 key={blockKey} className="md-h3">{inlineMd(line.slice(4))}</h3>);
+    else if (line.match(/^---+$/)) result.push(<hr key={blockKey} className="md-hr" />);
     else if (line.startsWith('```')) {
       const cl: string[] = []; i++;
       while (i < lines.length && !lines[i].startsWith('```')) { cl.push(lines[i]); i++; }
-      result.push(<pre key={i} className="md-code"><code>{cl.join('\n')}</code></pre>);
+      result.push(<pre key={blockKey} className="md-code"><code>{cl.join('\n')}</code></pre>);
     } else if (line.match(/^[-*•] /)) {
       const items: string[] = [];
       while (i < lines.length && lines[i].match(/^[-*•] /)) { items.push(lines[i].replace(/^[-*•] /, '')); i++; }
-      result.push(<ul key={i} className="md-ul">{items.map((it, j) => <li key={j}>{inlineMd(it)}</li>)}</ul>); continue;
+      result.push(<ul key={blockKey} className="md-ul">{items.map((it, j) => <li key={j}>{inlineMd(it)}</li>)}</ul>); continue;
     } else if (line.match(/^\d+\. /)) {
       const items: string[] = [];
       while (i < lines.length && lines[i].match(/^\d+\. /)) { items.push(lines[i].replace(/^\d+\. /, '')); i++; }
-      result.push(<ol key={i} className="md-ol">{items.map((it, j) => <li key={j}>{inlineMd(it)}</li>)}</ol>); continue;
-    } else if (line.trim() === '') result.push(<div key={i} className="md-sp" />);
-    else result.push(<p key={i} className="md-p">{inlineMd(line)}</p>);
+      result.push(<ol key={blockKey} className="md-ol">{items.map((it, j) => <li key={j}>{inlineMd(it)}</li>)}</ol>); continue;
+    } else if (line.trim() === '') result.push(<div key={blockKey} className="md-sp" />);
+    else result.push(<p key={blockKey} className="md-p">{inlineMd(line)}</p>);
     i++;
   }
   return result;

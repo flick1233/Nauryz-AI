@@ -43,6 +43,14 @@ const fs = require('node:fs');
       await page.waitForFunction(() => document.querySelector('.sidebar').getBoundingClientRect().right <= 1);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `overflow at ${width}`);
       await page.screenshot({ path: `${screenshotDir}/width-${width}.png`, fullPage: true, animations: 'disabled' });
+      await page.getByRole('button', { name: 'Язык: русский. Переключить на казахский' }).click();
+      await page.getByRole('button', { name: 'Веб-іздеу өшірулі', exact: true }).click();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `Kazakh search on overflow at ${width}`);
+      await page.getByRole('button', { name: 'Веб-іздеу қосулы', exact: true }).click();
+      await page.getByRole('button', { name: 'Тіл: қазақша. Орысшаға ауысу' }).click();
+      await page.getByRole('button', { name: 'Веб-поиск выключен', exact: true }).click();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `Russian search on overflow at ${width}`);
+      await page.getByRole('button', { name: 'Веб-поиск включён', exact: true }).click();
     }
     await page.getByRole('button', { name: 'Тема', exact: true }).click();
     await page.screenshot({ path: `${screenshotDir}/desktop-dark.png`, fullPage: true, animations: 'disabled' });
@@ -57,7 +65,7 @@ const fs = require('node:fs');
       }
       return route.fulfill({ status: 429, contentType: 'application/json', body: '{"error":"Сервис занят. Попробуйте позже."}' });
     });
-    await page.getByRole('button', { name: 'Без интернета', exact: true }).click();
+    await page.getByRole('button', { name: 'Веб-поиск выключен', exact: true }).click();
     const textbox = page.getByRole('textbox');
     await textbox.fill('Курица хромает');
     await page.getByRole('button', { name: 'Отправить', exact: true }).click();
