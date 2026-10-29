@@ -1,3 +1,4 @@
+import { parseClarifyJson, preserveLiteralResponse } from '../../../lib/clarify-response';
 import Anthropic from '@anthropic-ai/sdk';
 import { getEmbeddings } from '../../../lib/embeddings.cjs';
 import { NextRequest } from 'next/server';
@@ -67,6 +68,7 @@ const CLARIFY_JSON_INSTRUCTIONS = `ЕСЛИ ВОПРОС КАСАЕТСЯ ЗДО
   "causesPreview": ["Диагноз 1 — краткий узнаваемый признак", "Диагноз 2 — краткий признак"],
   "closing": "призыв прислать фото/видео или ответить текстом на вопросы выше"
 }
+Поле "type": "clarify" обязательно. Не оборачивай карточку в блок кода. Если пользователь явно просит JSON, схему или пример кода, сохрани запрошенный формат вместо автоматической карточки.
 Дай 3-5 groups (возраст, локализация симптома, поза/поведение, другие признаки, условия содержания — адаптируй под тему); causesPreview оставь пустым [], если данных для обоснованных предположений недостаточно или пользователь просит только уточняющие вопросы. Не заполняй список диагнозами ради количества.
 Если деталей УЖЕ достаточно (или тема не про здоровье животного, например экономика/тренды/субсидии) — НЕ используй JSON, отвечай обычным текстом в структуре ниже.`;
 
@@ -182,26 +184,6 @@ function parseDiagnosisJson(raw: string): {
 
 // Уточняющие вопросы (текстовый чат) — модель сама решает выдавать ли это вместо
 // обычной markdown-структуры, см. CLARIFY_JSON_INSTRUCTIONS.
-function parseClarifyJson(raw: string): {
-  title: string; intro: string; groups: { heading: string; itemsText: string }[];
-  causesPreview: string[]; closing: string;
-} {
-  const cleaned = raw.trim().replace(/^```(json)?\s*/i, '').replace(/```\s*$/i, '');
-  const data = JSON.parse(cleaned);
-  if (data.type !== 'clarify' || typeof data.title !== 'string' || !Array.isArray(data.groups)) {
-    throw new Error('unexpected clarify JSON shape');
-  }
-  return {
-    title: data.title,
-    intro: typeof data.intro === 'string' ? data.intro : '',
-    groups: data.groups
-      .map((g: any) => ({ heading: String(g?.heading ?? '').trim(), itemsText: String(g?.itemsText ?? '').trim() }))
-      .filter((g: any) => g.heading && g.itemsText),
-    causesPreview: Array.isArray(data.causesPreview) ? data.causesPreview.filter((s: any) => typeof s === 'string') : [],
-    closing: typeof data.closing === 'string' ? data.closing : '',
-  };
-}
-
 export async function POST(req: NextRequest) {
   try {
     if (Number(req.headers.get('content-length')) > 16_000_000) throw new ChatInputError('Запрос слишком большой', 413);
@@ -209,6 +191,7 @@ export async function POST(req: NextRequest) {
     try { body = await req.json(); } catch { throw new ChatInputError('Некорректный JSON'); }
     const prepared = prepareMessages(body?.messages);
     const messages = prepared.messages;
+    const literalResponse = preserveLiteralResponse(messages);
     if (!process.env.ANTHROPIC_API_KEY) {
       return Response.json({ error: 'Ассистент временно недоступен. Попробуйте позже.' }, { status: 503 });
     }
@@ -296,7 +279,7 @@ export async function POST(req: NextRequest) {
               // (найдено на "Курица хромает" — весь clarify-ответ приходил как ```json\n{...).
               if (trimmed.length >= 15) {
                 jsonModeDecided = true;
-                isJsonMode = trimmed.replace(/^```(json)?\s*/i, '').startsWith('{');
+                isJsonMode = !literalResponse && trimmed.replace(/^```(json)?\s*/i, '').startsWith('{');
                 if (!isJsonMode) controller.enqueue(encoder.encode(buffered));
               }
             } else if (isJsonMode) {

@@ -63,6 +63,7 @@ const fs = require('node:fs');
         await new Promise(resolve => setTimeout(resolve, 150));
         return route.fulfill({ status: 200, body: '\n___DIAGNOSIS___' + JSON.stringify({ inspection: 'Test finding', symptoms: ['limping'], causes: [], homeCare: [], recommendations: ['ветеринар'], needsVet: true }) + '\n___COST___{"costUsd":0.001,"historyTrimmed":false}\n___SOURCES___["Test source"]' });
       }
+      if (calls.length === 3) return route.fulfill({ status: 200, body: '\n___CLARIFY___' + JSON.stringify(require('./fixtures/clarify-no-type.json')) + '\n___SOURCES___["Fixture source"]' });
       return route.fulfill({ status: 429, contentType: 'application/json', body: '{"error":"Сервис занят. Попробуйте позже."}' });
     });
     await page.getByRole('button', { name: 'Веб-поиск выключен', exact: true }).click();
@@ -82,6 +83,14 @@ const fs = require('node:fs');
     assert.match(await page.locator('.request-error').innerText(), /Сервис занят/);
     await page.getByRole('button', { name: 'Вернуть вопрос' }).click();
     assert.equal(await textbox.inputValue(), 'Какие подробности нужны?');
+    await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+    await page.getByText('Хромота у курицы — уточняющие вопросы', { exact: true }).waitFor();
+    assert.equal(await page.locator('.clarify-group-heading').count(), 5);
+    assert.equal(await page.locator('.md-code').count(), 0);
+    for (const width of [360, 768, 1440]) {
+      await page.setViewportSize({ width, height: 960 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    }
     await page.getByRole('button', { name: 'Показать историю' }).click();
     await page.getByRole('button', { name: 'Удалить чат', exact: true }).click();
     await page.waitForFunction(() => localStorage.getItem('nauryz-v4') === '[]');

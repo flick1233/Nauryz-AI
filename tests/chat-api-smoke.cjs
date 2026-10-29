@@ -1,6 +1,8 @@
 // Exercise the actual SDK/Next streaming route against a local fake provider.
 // Does not send credentials, questions, or requests to an external service.
 const http = require('node:http');
+const clarifyFixture = require('./fixtures/clarify-no-type.json');
+const clarifyWire = '```json\n' + JSON.stringify(clarifyFixture) + '\n```';
 const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
@@ -23,7 +25,7 @@ const { readFileSync } = require('node:fs');
       const timer = setInterval(() => event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Streaming a local test answer. ' } }), 100);
       res.on('close', () => { clearInterval(timer); cancelled = true; }); return;
     }
-    for (const text of ['Local ', 'SDK ', 'integration ', 'answer.']) {
+    for (const text of query.includes('clarify_fixture') ? [...clarifyWire] : ['Local ', 'SDK ', 'integration ', 'answer.']) {
       event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } });
     }
     event({ type: 'content_block_stop', index: 0 });
@@ -68,6 +70,15 @@ const { readFileSync } = require('node:fs');
     assert.equal(calls[0].tools[0].max_uses, 1);
     assert.equal(calls[0].model, 'claude-haiku-4-5-20251001');
     assert.equal(typeof calls[0].messages[0].content, 'string');
+    const clarification = await send([{ role: 'user', content: 'Курица хромает clarify_fixture' }]);
+    const clarificationText = await clarification.text();
+    assert.equal(clarification.status, 200);
+    assert.ok(clarificationText.startsWith('\n___CLARIFY___'));
+    assert.deepEqual(JSON.parse(clarificationText.split('\n___CLARIFY___')[1].split('\n___COST___')[0]), clarifyFixture);
+    const codeExample = await send([{ role: 'user', content: 'Покажи JSON clarify_fixture' }]);
+    const codeText = await codeExample.text();
+    assert.equal(codeText.split('\n___COST___')[0], clarifyWire);
+    assert.ok(!codeText.includes('___CLARIFY___'));
     const limited = await send([{ role: 'user', content: 'rate_limit' }]);
     assert.equal(limited.status, 429); assert.ok(!(await limited.text()).includes('private provider body'));
     const ac = new AbortController();
