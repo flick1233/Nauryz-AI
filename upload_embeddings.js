@@ -1,15 +1,11 @@
 // Запуск: node upload_embeddings.js
-// Бесплатные эмбеддинги через Hugging Face
-
+// Uses the same OpenAI vectors as chat retrieval and Drive ingestion.
+// Provide environment variables in your shell; credentials are never embedded.
 const fs = require('fs');
 const path = require('path');
-
-const SUPABASE_URL = 'https://djemdkjsigmkapimsple.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZW1ka2pzaWdta2FwaW1zcGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwNjA4OTQsImV4cCI6MjA5NzYzNjg5NH0.pTfv2NA6m3-pMn4YbB3L18PWnKO6XZY631VYRrzo7Vk';
-
-// Бесплатный HuggingFace токен — создай на hf.co/settings/tokens
-// Модель multilingual-e5-small даёт 384 измерения (нужно изменить в SQL!)
-const HF_TOKEN = process.env.HF_TOKEN || '';
+const { getEmbeddings } = require('./lib/embeddings.cjs');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
 const chunks = fs.readFileSync(path.join(__dirname, 'all_chunks.jsonl'), 'utf8')
   .split('\n').filter(Boolean).map(l => JSON.parse(l));
@@ -17,22 +13,7 @@ const chunks = fs.readFileSync(path.join(__dirname, 'all_chunks.jsonl'), 'utf8')
 console.log(`📚 Загружаем ${chunks.length} чанков...\n`);
 
 async function getEmbedding(text) {
-  // multilingual-e5-small: 384 dims, поддерживает русский
-  const r = await fetch(
-    'https://api-inference.huggingface.co/pipeline/feature-extraction/intfloat/multilingual-e5-small',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + HF_TOKEN
-      },
-      body: JSON.stringify({ inputs: 'query: ' + text, options: { wait_for_model: true } })
-    }
-  );
-  const d = await r.json();
-  if (!Array.isArray(d)) throw new Error(JSON.stringify(d).slice(0, 200));
-  // HF возвращает [[...]] или [...] — берём первый вектор
-  return Array.isArray(d[0]) ? d[0] : d;
+  return (await getEmbeddings([text]))[0];
 }
 
 async function insertChunk(chunk, embedding) {
@@ -61,12 +42,8 @@ async function insertChunk(chunk, embedding) {
 }
 
 async function main() {
-  if (!HF_TOKEN) {
-    console.log('❌ Нужен HF_TOKEN!');
-    console.log('1. Зайди на https://huggingface.co/settings/tokens');
-    console.log('2. Создай токен (бесплатно)');
-    console.log('3. Запусти: $env:HF_TOKEN="hf_xxx"; node upload_embeddings.js');
-    process.exit(1);
+  if (!SUPABASE_URL || !SUPABASE_KEY || !process.env.OPENAI_API_KEY) {
+    throw new Error('Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY), and OPENAI_API_KEY');
   }
 
   // Сначала проверим размерность эмбеддинга
@@ -91,7 +68,7 @@ async function main() {
         console.log(`✅ [${i+1}/${chunks.length}] ${chunk.id}`);
       }
 
-      // Пауза — HF free tier имеет лимит
+      // Bound the pace of the one-off import.
       await new Promise(r => setTimeout(r, 500));
 
     } catch(e) {
@@ -108,4 +85,4 @@ async function main() {
   console.log(`❌ Ошибок: ${failed}`);
 }
 
-main().catch(console.error);
+main().catch(error => { console.error(error.message); process.exitCode = 1; });

@@ -5,16 +5,10 @@ for (const line of fs.readFileSync('.env.ingest.local', 'utf8').split(/\r?\n/)) 
 }
 const URL = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_KEY;
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
+const { getEmbeddings } = require('../lib/embeddings.cjs');
 async function getEmbedding(text) {
-  const r = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-    body: JSON.stringify({ model: 'text-embedding-3-small', input: text, dimensions: 384 }),
-  });
-  const d = await r.json();
-  return d.data[0].embedding;
+  return (await getEmbeddings([text]))[0];
 }
 
 async function search(query) {

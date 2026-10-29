@@ -38,7 +38,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY || !OPENAI_API_KEY) {
   process.exit(1);
 }
 
-const pdfParse = require('pdf-parse');
+const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 
 // --- Источники -----------------------------------------------------------
 
@@ -138,26 +138,9 @@ function shortHash(s) {
 }
 
 // --- OpenAI эмбеддинги -----------------------------------------------------
-// Колонка knowledge_chunks.embedding — vector(384) (подтверждено ошибкой Postgres
-// при тестовой вставке: "expected 384 dimensions, not 1536"). text-embedding-3-small
-// нативно отдаёт 1536, но поддерживает урезание через параметр dimensions — используем
-// его, чтобы совпасть со схемой. ВАЖНО: тем же параметром нужно поправить и
-// app/api/chat/route.ts, иначе поиск по-прежнему будет падать на несовпадении размерности.
-const EMBEDDING_DIMENSIONS = 384;
-
-async function getEmbeddings(texts) {
-  const r = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({ model: 'text-embedding-3-small', input: texts, dimensions: EMBEDDING_DIMENSIONS }),
-  });
-  const data = await r.json();
-  if (!data.data) throw new Error(`OpenAI embeddings error: ${JSON.stringify(data).slice(0, 300)}`);
-  return data.data.map((d) => d.embedding);
-}
+// One model and dimensions for retrieval and all ingestion paths.
+const { getEmbeddings: sharedGetEmbeddings } = require('../lib/embeddings.cjs');
+const getEmbeddings = (texts) => sharedGetEmbeddings(texts, process.env.OPENAI_API_KEY);
 
 // --- Supabase insert (с фолбэком по схеме и по дедупликации) ---------------
 let richSchemaSupported = true; // source_type/source_url/language/snapshot_date как колонки
@@ -296,7 +279,7 @@ async function ingestFao() {
 
     let text;
     try {
-      const parsed = await pdfParse(buf);
+      const parsed = await pdfParse(Uint8Array.from(buf));
       text = parsed.text;
       console.log(`   Скачано, стр.: ${parsed.numpages}, извлечено символов: ${text.length}`);
     } catch (e) {

@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { Menu, Plus, Camera, Mic, Send, X, Square, Globe, Calculator, ChevronLeft, Sun, Moon } from 'lucide-react';
 import './nauryz.css';
+import { historyForRequest, prepareMessages } from '../lib/chat-context';
+import { readChatStream } from '../lib/chat-protocol';
 
 interface ImageData { data: string; mediaType: string; preview: string }
 type Severity = 'low' | 'medium' | 'high' | 'critical';
@@ -19,7 +21,7 @@ interface Message {
   diagnosis?: DiagnosisData;
   clarify?: ClarifyData;
   isCalcCard?: boolean;
-  costUsd?: number; timestamp: Date;
+  costUsd?: number; sources?: string[]; historyTrimmed?: boolean; isError?: boolean; timestamp: Date;
 }
 interface Chat { id: string; title: string; messages: Message[]; createdAt: Date; }
 
@@ -104,13 +106,13 @@ interface UiDict {
 
 const UI: Record<'ru' | 'kk', UiDict> = {
   ru: {
-    subtitle: 'Агро-ассистент', emptyHeading: 'Сәлем! Чем помочь?', emptySubtitle: 'Задай вопрос о птицеводстве или прикрепи фото курицы/птичника — поставлю диагноз и подскажу решение',
+    subtitle: 'Агро-ассистент', emptyHeading: 'Сәлем! Чем помочь?', emptySubtitle: 'Разберём симптомы, кормление и экономику вашего хозяйства. Опишите ситуацию или прикрепите фото — начнём с того, что важно.',
     inputPlaceholder: 'Опиши проблему или задай вопрос…', recording: 'Запись…', photoBtn: 'Фото', voiceBtn: 'Голос',
     ariaHideHistory: 'Скрыть историю', ariaShowHistory: 'Показать историю', ariaClose: 'Закрыть', ariaRemove: 'Убрать', ariaStop: 'Остановить', ariaSend: 'Отправить', ariaDeleteChat: 'Удалить чат', ariaTheme: 'Тема',
     newChat: 'Новый чат', newChatTitle: 'Новый чат', chatFallback: 'Чат', historySection: 'История', noChats: 'Нет чатов', farmer: 'Фермер',
-    searchOn: 'Поиск ВКЛ', searchOff: 'Поиск ВЫКЛ', feedCalcBtn: 'Калькулятор нормы корма',
+    searchOn: 'Интернет включён', searchOff: 'Без интернета', feedCalcBtn: 'Калькулятор нормы корма',
     tagInspection: 'Осмотр', tagSymptoms: 'Симптомы', tagCauses: 'Вероятные причины', detailBtn: 'Подробный разбор →', tagClarify: 'Уточняющие вопросы', probableDirections: '⚠️ Вероятные направления',
-    diagnosisTitle: 'Результат диагностики', causesHeading: 'Возможные причины', homeCareHeading: '🏠 Лечение в домашних условиях', vetHeading: 'Когда обращаться к ветеринару', doneSaveBtn: 'Понятно, сохранить в историю',
+    diagnosisTitle: 'Предварительная оценка', causesHeading: 'Возможные причины', homeCareHeading: '🏠 Уход до осмотра ветеринаром', vetHeading: 'Когда обращаться к ветеринару', doneSaveBtn: 'Понятно, сохранить в историю',
     inlineCalcTitle: '🧮 Калькулятор корма для бройлеров', calcAgeLabel: 'Возраст птицы', calcHeadsLabel: 'Поголовье (голов)', calcResultPrefix: 'Суточная норма для', calcProteinLabel: 'Белок в корме:', calcWaterNote: 'Вода нужна примерно вдвое больше объёма корма, особенно в жару.', calcHeadsShort: 'гол.',
     feedCalcTitle: 'Калькулятор нормы корма', birdTypeLabel: 'Тип птицы', ageLabel: 'Возраст', headsLabel: 'Количество голов', priceLabel: 'Цена корма за кг, ₸ (необязательно)', pricePlaceholder: 'Например, 250',
     resultLabel: 'Результат', perHeadSub: 'на голову в сутки', dailySub: 'кг/сутки на всё стадо', monthlySub: 'кг в месяц', costSub: 'в месяц на корм', waterSub: 'Ориентировочный расход воды в сутки', doneBtn: 'Готово',
@@ -119,13 +121,13 @@ const UI: Record<'ru' | 'kk', UiDict> = {
     langToggle: 'ҚАЗ',
   },
   kk: {
-    subtitle: 'Агро-көмекші', emptyHeading: 'Сәлем! Немен көмектесейін?', emptySubtitle: 'Құс шаруашылығы туралы сұрақ қой немесе тауық/құсхананың фотосын тіркеп жібер — диагноз қоямын және шешім айтамын',
+    subtitle: 'Агро-көмекші', emptyHeading: 'Сәлем! Немен көмектесейін?', emptySubtitle: 'Құстардың жағдайы, жем және шаруашылық есебі туралы сұраңыз. Жағдайды сипаттаңыз немесе фото тіркеңіз.',
     inputPlaceholder: 'Мәселені сипаттаңыз немесе сұрақ қойыңыз…', recording: 'Жазылуда…', photoBtn: 'Фото', voiceBtn: 'Дауыс',
     ariaHideHistory: 'Тарихты жасыру', ariaShowHistory: 'Тарихты көрсету', ariaClose: 'Жабу', ariaRemove: 'Алып тастау', ariaStop: 'Тоқтату', ariaSend: 'Жіберу', ariaDeleteChat: 'Чатты жою', ariaTheme: 'Тақырып',
     newChat: 'Жаңа чат', newChatTitle: 'Жаңа чат', chatFallback: 'Чат', historySection: 'Тарих', noChats: 'Чаттар жоқ', farmer: 'Фермер',
     searchOn: 'Іздеу ҚОСУЛЫ', searchOff: 'Іздеу ӨШІРУЛІ', feedCalcBtn: 'Жем нормасының калькуляторы',
     tagInspection: 'Қарау', tagSymptoms: 'Белгілер', tagCauses: 'Ықтимал себептер', detailBtn: 'Толық талдау →', tagClarify: 'Нақтылау сұрақтары', probableDirections: '⚠️ Ықтимал бағыттар',
-    diagnosisTitle: 'Диагностика нәтижесі', causesHeading: 'Ықтимал себептер', homeCareHeading: '🏠 Үй жағдайында емдеу', vetHeading: 'Ветеринарға қашан жүгіну керек', doneSaveBtn: 'Түсінікті, тарихқа сақтау',
+    diagnosisTitle: 'Алдын ала бағалау', causesHeading: 'Ықтимал себептер', homeCareHeading: '🏠 Ветеринарға дейінгі күтім', vetHeading: 'Ветеринарға қашан жүгіну керек', doneSaveBtn: 'Түсінікті, тарихқа сақтау',
     inlineCalcTitle: '🧮 Бройлерге арналған жем калькуляторы', calcAgeLabel: 'Құстың жасы', calcHeadsLabel: 'Бас саны', calcResultPrefix: 'Тәуліктік норма', calcProteinLabel: 'Жемдегі белок:', calcWaterNote: 'Су жемнің көлемінен шамамен екі есе көп қажет, әсіресе ысықта.', calcHeadsShort: 'бас',
     feedCalcTitle: 'Жем нормасының калькуляторы', birdTypeLabel: 'Құс түрі', ageLabel: 'Жасы', headsLabel: 'Бас саны', priceLabel: 'Жемнің 1 кг бағасы, ₸ (міндетті емес)', pricePlaceholder: 'Мысалы, 250',
     resultLabel: 'Нәтиже', perHeadSub: 'бір басқа тәулігіне', dailySub: 'кг/тәулігіне бүкіл үйірге', monthlySub: 'кг айына', costSub: 'айына жемге', waterSub: 'Тәуліктік судың болжамды шығыны', doneBtn: 'Дайын',
@@ -225,12 +227,43 @@ function DiagnosisCard({ diagnosis, onOpen, ui }: { diagnosis: DiagnosisData; on
   );
 }
 
+function useDialog(onClose: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const close = useRef(onClose); close.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const background = document.querySelector('.layout') as HTMLElement | null;
+    const wasInert = background?.inert;
+    if (background) background.inert = true;
+    const sheet = ref.current!;
+    const focusable = () => Array.from(sheet.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select, textarea, [tabindex="0"]')).filter(el => el.getClientRects().length);
+    (focusable()[0] || sheet).focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); close.current(); }
+      if (event.key === 'Tab') {
+        const items = focusable(); const first = items[0] || sheet; const last = items.at(-1) || sheet;
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === sheet)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || document.activeElement === sheet)) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      if (background) background.inert = !!wasInert;
+      previous?.focus();
+    };
+  }, []);
+  return { ref, titleId };
+}
+
 function DiagnosisModal({ diagnosis, onClose, ui }: { diagnosis: DiagnosisData; onClose: () => void; ui: UiDict }) {
+  const dialog = useDialog(onClose);
   return (
     <div className="dlg-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="dlg-sheet">
+      <div ref={dialog.ref} role="dialog" aria-modal="true" aria-labelledby={dialog.titleId} tabIndex={-1} className="dlg-sheet">
         <div className="dlg-header">
-          <span>{ui.diagnosisTitle}</span>
+          <span id={dialog.titleId}>{ui.diagnosisTitle}</span>
           <button className="icon-btn" onClick={onClose} aria-label={ui.ariaClose}><X size={14} strokeWidth={2.75} /></button>
         </div>
         <div className="dlg-body">
@@ -339,7 +372,7 @@ function InlineCalcCard({ ageId, heads, onAgeChange, onHeadsChange, ui }: {
       </div>
       <div className="calc-field">
         <label className="calc-label">{ui.calcHeadsLabel}</label>
-        <input className="calc-input" type="number" min={0} value={heads} onChange={e => onHeadsChange(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+        <input className="calc-input" type="number" aria-label={ui.headsLabel} min={0} value={heads} onChange={e => onHeadsChange(Math.max(0, parseInt(e.target.value, 10) || 0))} />
       </div>
       <div className="calc-result">
         <div className="calc-result-label">{ui.calcResultPrefix} {heads} {ui.calcHeadsShort} ({group.label})</div>
@@ -352,6 +385,7 @@ function InlineCalcCard({ ageId, heads, onAgeChange, onHeadsChange, ui }: {
 }
 
 function FeedCalcModal({ onClose, ui }: { onClose: () => void; ui: UiDict }) {
+  const dialog = useDialog(onClose);
   const [birdType, setBirdType] = useState<BirdType>('broiler');
   const [ageValue, setAgeValue] = useState(14);
   const [ageUnit, setAgeUnit] = useState<'days' | 'weeks'>('days');
@@ -368,9 +402,9 @@ function FeedCalcModal({ onClose, ui }: { onClose: () => void; ui: UiDict }) {
 
   return (
     <div className="dlg-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="dlg-sheet" style={{ width: 'min(460px, 100%)' }}>
+      <div ref={dialog.ref} role="dialog" aria-modal="true" aria-labelledby={dialog.titleId} tabIndex={-1} className="dlg-sheet" style={{ width: 'min(460px, 100%)' }}>
         <div className="dlg-header">
-          <span>{ui.feedCalcTitle}</span>
+          <span id={dialog.titleId}>{ui.feedCalcTitle}</span>
           <button className="icon-btn" onClick={onClose} aria-label={ui.ariaClose}><X size={14} strokeWidth={2.75} /></button>
         </div>
         <div className="dlg-body">
@@ -385,7 +419,7 @@ function FeedCalcModal({ onClose, ui }: { onClose: () => void; ui: UiDict }) {
           <div className="calc-field">
             <label className="calc-label">{ui.ageLabel}</label>
             <div className="calc-age-row">
-              <input className="calc-input" type="number" min={0} value={ageValue} onChange={e => setAgeValue(Math.max(0, parseInt(e.target.value, 10) || 0))} style={{ flex: 1 }} />
+              <input className="calc-input" type="number" aria-label={ui.ageLabel} min={0} value={ageValue} onChange={e => setAgeValue(Math.max(0, parseInt(e.target.value, 10) || 0))} style={{ flex: 1 }} />
               <div className="calc-seg-wrap">
                 <button className={`calc-seg-btn ${ageUnit === 'days' ? 'active' : ''}`} onClick={() => setAgeUnit('days')}>{ui.unitDays}</button>
                 <button className={`calc-seg-btn ${ageUnit === 'weeks' ? 'active' : ''}`} onClick={() => setAgeUnit('weeks')}>{ui.unitWeeks}</button>
@@ -394,11 +428,11 @@ function FeedCalcModal({ onClose, ui }: { onClose: () => void; ui: UiDict }) {
           </div>
           <div className="calc-field">
             <label className="calc-label">{ui.headsLabel}</label>
-            <input className="calc-input" type="number" min={0} value={heads} onChange={e => setHeads(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+            <input className="calc-input" type="number" aria-label={ui.headsLabel} min={0} value={heads} onChange={e => setHeads(Math.max(0, parseInt(e.target.value, 10) || 0))} />
           </div>
           <div className="calc-field">
             <label className="calc-label">{ui.priceLabel}</label>
-            <input className="calc-input" type="number" min={0} placeholder={ui.pricePlaceholder} value={price || ''} onChange={e => setPrice(Math.max(0, parseFloat(e.target.value) || 0))} />
+            <input className="calc-input" type="number" aria-label={ui.priceLabel} min={0} placeholder={ui.pricePlaceholder} value={price || ''} onChange={e => setPrice(Math.max(0, parseFloat(e.target.value) || 0))} />
           </div>
 
           <div className="calc-result">
@@ -504,6 +538,12 @@ export default function NauryzAI() {
   const [sessionCost, setSessionCost] = useState(0);
   const [activeDiagnosis, setActiveDiagnosis] = useState<DiagnosisData | null>(null);
 
+  const [requestError, setRequestError] = useState('');
+  const [storageWarning, setStorageWarning] = useState(false);
+  const sendingRef = useRef(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (sidebarRef.current) sidebarRef.current.inert = !sidebarOpen; }, [sidebarOpen]);
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -529,10 +569,14 @@ export default function NauryzAI() {
       }
     } catch {}
   }, []);
-  useEffect(() => { if (chats.length > 0) try { localStorage.setItem('nauryz-v4', JSON.stringify(chats)); } catch {} }, [chats]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  useEffect(() => { setHistoryLoaded(true); }, []);
+  useEffect(() => { if (historyLoaded) try { localStorage.setItem('nauryz-v4', JSON.stringify(chats)); setStorageWarning(false); } catch { setStorageWarning(true); } }, [chats, historyLoaded]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isLoading]);
 
   const createNewChat = () => {
+    if (sendingRef.current) return;
+    setRequestError('');
     const id = Date.now().toString();
     setChats(prev => [...prev, { id, title: 'Новый чат', messages: [], createdAt: new Date() }]);
     setActiveChatId(id); setMessages([]); setSessionCost(0);
@@ -540,6 +584,8 @@ export default function NauryzAI() {
   };
 
   const switchChat = (chatId: string) => {
+    if (sendingRef.current) return;
+    setRequestError('');
     if (activeChatId) setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages } : c));
     const chat = chats.find(c => c.id === chatId);
     if (chat) { setActiveChatId(chatId); setMessages(chat.messages); setSessionCost(0); }
@@ -548,6 +594,7 @@ export default function NauryzAI() {
 
   const deleteChat = (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (sendingRef.current) return;
     setChats(prev => prev.filter(c => c.id !== chatId));
     if (activeChatId === chatId) { setActiveChatId(null); setMessages([]); }
   };
@@ -556,7 +603,8 @@ export default function NauryzAI() {
   const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // лимит Anthropic API на одно изображение в base64
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
+    const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
+    setRequestError('');
     if (file.type.startsWith('video/')) { extractFrames(file); return; }
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -566,7 +614,7 @@ export default function NauryzAI() {
       const needsResize = scale < 1 || file.size > MAX_UPLOAD_BYTES;
       if (!needsResize) {
         const r = new FileReader();
-        r.onload = ev => { const d = ev.target?.result as string; setPendingImage({ data: d.split(',')[1], mediaType: file.type, preview: d }); };
+        r.onload = ev => { const d = ev.target?.result as string; setPendingVideo(null); setPendingImage({ data: d.split(',')[1], mediaType: file.type, preview: d }); };
         r.readAsDataURL(file);
         return;
       }
@@ -576,9 +624,9 @@ export default function NauryzAI() {
       const ctx = c.getContext('2d');
       ctx?.drawImage(img, 0, 0, c.width, c.height);
       const d = c.toDataURL('image/jpeg', 0.85);
-      setPendingImage({ data: d.split(',')[1], mediaType: 'image/jpeg', preview: d });
+      setPendingVideo(null); setPendingImage({ data: d.split(',')[1], mediaType: 'image/jpeg', preview: d });
     };
-    img.onerror = () => { URL.revokeObjectURL(url); alert('Не удалось загрузить фото'); };
+    img.onerror = () => { URL.revokeObjectURL(url); setRequestError(lang === 'kk' ? 'Фото ашылмады. JPG немесе PNG қолданыңыз.' : 'Фото не открылось. Попробуйте JPG или PNG.'); };
     img.src = url;
   };
 
@@ -586,93 +634,121 @@ export default function NauryzAI() {
     setIsExtractingVideo(true);
     const url = URL.createObjectURL(file);
     const v = document.createElement('video'); v.src = url; v.muted = true; v.playsInline = true;
+    const fail = () => { setIsExtractingVideo(false); URL.revokeObjectURL(url); setRequestError(lang === 'kk' ? 'Видеоны өңдеу мүмкін болмады. 20 секундқа дейінгі ролик не фото қолданыңыз.' : 'Не удалось обработать видео. Выберите ролик до 20 секунд или прикрепите фото.'); };
     v.onloadedmetadata = async () => {
-      if (v.duration > 20) { alert('Максимум 20 секунд'); setIsExtractingVideo(false); URL.revokeObjectURL(url); return; }
-      const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * v.videoHeight / v.videoWidth) || 360;
-      const ctx = c.getContext('2d'); const frames: ImageData[] = [];
-      for (let i = 0; i < 7; i++) {
-        await new Promise<void>(res => { v.currentTime = Math.min(v.duration * i / 6, v.duration - 0.05); v.onseeked = () => res(); });
-        ctx?.drawImage(v, 0, 0, c.width, c.height);
-        const d = c.toDataURL('image/jpeg', 0.7);
-        frames.push({ data: d.split(',')[1], mediaType: 'image/jpeg', preview: d });
-      }
-      setPendingVideo({ frames, preview: url }); setIsExtractingVideo(false);
+      try {
+        if (!Number.isFinite(v.duration) || v.duration <= 0 || v.duration > 20 || !v.videoWidth || !v.videoHeight) throw new Error('Invalid video');
+        const c = document.createElement('canvas');
+        const scale = Math.min(1, 768 / Math.max(v.videoWidth, v.videoHeight));
+        c.width = Math.max(1, Math.round(v.videoWidth * scale)); c.height = Math.max(1, Math.round(v.videoHeight * scale));
+        const ctx = c.getContext('2d'); if (!ctx) throw new Error('Canvas unavailable');
+        const frames: ImageData[] = [];
+        for (let i = 0; i < 7; i++) {
+          const target = Math.max(0, Math.min(v.duration * i / 6, v.duration - 0.05));
+          await new Promise<void>((resolve, reject) => {
+            const cleanup = () => { clearTimeout(timer); v.removeEventListener('seeked', ready); v.removeEventListener('loadeddata', ready); };
+            const ready = () => { if (v.readyState >= 2 && Math.abs(v.currentTime - target) < 0.1) { cleanup(); resolve(); } };
+            const timer = setTimeout(() => { cleanup(); reject(new Error('Video timeout')); }, 10_000);
+            v.addEventListener('seeked', ready); v.addEventListener('loadeddata', ready);
+            v.currentTime = target; ready();
+          });
+          ctx.drawImage(v, 0, 0, c.width, c.height);
+          const d = c.toDataURL('image/jpeg', 0.7);
+          frames.push({ data: d.split(',')[1], mediaType: 'image/jpeg', preview: d });
+        }
+        setPendingImage(null); setPendingVideo({ frames, preview: url }); setIsExtractingVideo(false);
+      } catch { fail(); }
     };
-    v.onerror = () => { setIsExtractingVideo(false); URL.revokeObjectURL(url); };
+    v.onerror = fail;
   };
 
   const startVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { alert('Только в Chrome'); return; }
-    const r = new SR(); r.lang = 'ru-RU'; r.continuous = false; r.interimResults = false;
+    const r = new SR(); r.lang = lang === 'kk' ? 'kk-KZ' : 'ru-RU'; r.continuous = false; r.interimResults = false;
     r.onresult = (e: any) => { setInput(e.results[0][0].transcript); setIsRecording(false); };
     r.onerror = () => setIsRecording(false); r.onend = () => setIsRecording(false);
     recognitionRef.current = r; r.start(); setIsRecording(true);
   };
 
   const sendMessage = useCallback(async (text?: string) => {
-    const content = text || input.trim();
+    if (sendingRef.current || isExtractingVideo) return;
+    const content = (text ?? input).trim();
     if (!content && !pendingImage && !pendingVideo) return;
+    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: content || (pendingVideo ? '🎥 Видео' : '📸 Фото'), image: pendingImage || undefined, frames: pendingVideo?.frames, videoPreview: pendingVideo?.preview, timestamp: new Date() };
+    const newMsgs = [...messages, userMsg];
+    let prepared;
+    try {
+      const history = historyForRequest(newMsgs);
+      const bounded = history.length > 120 ? [history[0], ...history.slice(-119)] : history;
+      prepared = prepareMessages(bounded);
+      prepared.trimmed ||= history.length > 120;
+    } catch (error) { setRequestError(error instanceof Error ? error.message : 'Проверьте вопрос'); return; }
+    sendingRef.current = true;
+    setRequestError('');
     let chatId = activeChatId;
     if (!chatId) {
-      const id = Date.now().toString();
-      setChats(prev => [...prev, { id, title: content?.slice(0, 30) || 'Новый чат', messages: [], createdAt: new Date() }]);
-      setActiveChatId(id); chatId = id;
+      chatId = crypto.randomUUID();
+      setChats(prev => [...prev, { id: chatId!, title: content.slice(0, 35) || 'Чат', messages: newMsgs, createdAt: new Date() }]);
+      setActiveChatId(chatId);
     }
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: content || (pendingVideo ? '🎥 Видео' : '📸 Фото'), image: pendingImage || undefined, frames: pendingVideo?.frames, videoPreview: pendingVideo?.preview, timestamp: new Date() };
-    const newMsgs = [...messages, userMsg];
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: newMsgs, ...(messages.length === 0 ? { title: content.slice(0, 35) || 'Чат' } : {}) } : c));
     setMessages(newMsgs); setInput(''); setPendingImage(null); setPendingVideo(null); setIsLoading(true);
-    if (messages.length === 0) setChats(prev => prev.map(c => c.id === chatId ? { ...c, title: content?.slice(0, 35) || 'Чат' } : c));
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     const ac = new AbortController(); setAbortController(ac);
-    let searchCtx = '';
-    if (searchMode && content) {
-      try { const sr = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: content }), signal: ac.signal }); if (sr.ok) { const sd = await sr.json(); searchCtx = sd.result ? `\n\n[Из интернета]:\n${sd.result}` : ''; } } catch {}
-    }
-    const apiMsgs = newMsgs.map(m => ({ role: m.role, content: m.role === 'user' && m.id === userMsg.id && searchCtx ? m.content + searchCtx : m.content, image: m.image, frames: m.frames }));
+    const aid = crypto.randomUUID();
+    let answer: Message | undefined;
+    let received = '';
+    const persistAnswer = (updated: Message) => {
+      answer = updated;
+      setMessages([...newMsgs, updated]);
+    };
     try {
-      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: apiMsgs }), signal: ac.signal });
-      if (!res.ok) throw new Error('Ошибка');
-      const reader = res.body!.getReader(); const dec = new TextDecoder();
-      let text2 = ''; const aid = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, { id: aid, role: 'assistant', content: '', timestamp: new Date() }]);
-      while (true) {
-        const { done, value } = await reader.read(); if (done) break;
-        text2 += dec.decode(value, { stream: true });
-        const di = text2.indexOf('\n___DIAGNOSIS___');
-        const cli = text2.indexOf('\n___CLARIFY___');
-        const ci = text2.indexOf('\n___COST___');
-        const markers = [di, cli, ci].filter(i => i >= 0);
-        const cut = markers.length ? Math.min(...markers) : -1;
-        setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: cut >= 0 ? text2.slice(0, cut) : text2 } : m));
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: prepared.messages, search: searchMode, historyTrimmed: prepared.trimmed }), signal: ac.signal });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (res.status === 429 ? 'Сервис занят. Попробуйте немного позже.' : 'Не удалось получить ответ. Повторите запрос.'));
       }
-      const di = text2.indexOf('\n___DIAGNOSIS___');
-      const cli = text2.indexOf('\n___CLARIFY___');
-      const ci = text2.indexOf('\n___COST___');
-      const afterMarker = (start: number) => {
-        const following = [di, cli, ci].filter(i => i > start);
-        return following.length ? Math.min(...following) : undefined;
-      };
-      let diagnosis: DiagnosisData | undefined;
-      if (di >= 0) {
-        try { diagnosis = JSON.parse(text2.slice(di + '\n___DIAGNOSIS___'.length, afterMarker(di))); } catch {}
-      }
-      let clarify: ClarifyData | undefined;
-      if (cli >= 0) {
-        try { clarify = JSON.parse(text2.slice(cli + '\n___CLARIFY___'.length, afterMarker(cli))); } catch {}
-      }
-      const firstMarker = [di, cli, ci].filter(i => i >= 0);
-      const plainContent = text2.slice(0, firstMarker.length ? Math.min(...firstMarker) : undefined);
-      if (ci >= 0) { try { const { costUsd } = JSON.parse(text2.slice(ci + '\n___COST___'.length)); setMessages(prev => prev.map(m => m.id === aid ? { ...m, costUsd } : m)); setSessionCost(p => p + costUsd); } catch {} }
-      setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: plainContent, diagnosis, clarify } : m));
-      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...newMsgs, { id: aid, role: 'assistant' as const, content: plainContent, diagnosis, clarify, timestamp: new Date() }] } : c));
+      if (!res.body) throw new Error('Пустой ответ сервера');
+      const reader = res.body.getReader(); const dec = new TextDecoder();
+      answer = { id: aid, role: 'assistant', content: '', timestamp: new Date() };
+      persistAnswer(answer);
+      try {
+        while (true) {
+          const { done, value } = await reader.read(); if (done) break;
+          received += dec.decode(value, { stream: true });
+          persistAnswer({ ...answer, content: readChatStream(received).content });
+        }
+        received += dec.decode();
+      } finally { reader.releaseLock(); }
+      const { content: plainContent, values } = readChatStream(received);
+      if (values.ERROR) throw new Error(String(values.ERROR));
+      const usage = values.COST as { costUsd?: number; historyTrimmed?: boolean } | undefined;
+      const costUsd = typeof usage?.costUsd === 'number' && Number.isFinite(usage.costUsd) ? usage.costUsd : undefined;
+      const sources = Array.isArray(values.SOURCES) ? values.SOURCES.filter((v): v is string => typeof v === 'string') : undefined;
+      persistAnswer({ ...answer, content: plainContent, diagnosis: values.DIAGNOSIS as DiagnosisData | undefined,
+        clarify: values.CLARIFY as ClarifyData | undefined, sources, costUsd, historyTrimmed: usage?.historyTrimmed });
+      if (costUsd !== undefined) setSessionCost(p => p + costUsd);
     } catch (err: any) {
-      if (err.name !== 'AbortError') setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '❌ Ошибка. Проверьте API ключ.', timestamp: new Date() }]);
-    } finally { setIsLoading(false); setAbortController(null); }
-  }, [input, pendingImage, pendingVideo, messages, searchMode, activeChatId]);
+      if (err.name === 'AbortError') {
+        if (answer) persistAnswer({ ...answer, content: readChatStream(received).content || (lang === 'kk' ? 'Жауап тоқтатылды.' : 'Ответ остановлен.'), isError: !received });
+      } else {
+        setRequestError(err.message || 'Соединение прервалось. Повторите запрос.');
+        if (answer) persistAnswer({ ...answer, content: readChatStream(received).content, isError: true });
+      }
+    } finally {
+      const saved = answer?.content || answer?.diagnosis || answer?.clarify ? [...newMsgs, answer!] : newMsgs;
+      setMessages(saved);
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: saved } : c));
+      setIsLoading(false); setAbortController(null); sendingRef.current = false;
+    }
+  }, [input, pendingImage, pendingVideo, messages, searchMode, activeChatId, isExtractingVideo, lang]);
 
   // "Норма корма для бройлеров" — живой калькулятор в чате, а не запрос к API
   // (design_handoff README: "implement as real client-side state bound to number inputs").
   const askQuickQuestion = (s: { id: string; text: string }) => {
+    if (sendingRef.current) return;
     if (s.id !== 'feed') { sendMessage(s.text); return; }
     let chatId = activeChatId;
     if (!chatId) {
@@ -706,17 +782,17 @@ export default function NauryzAI() {
         <textarea
           ref={textareaRef} value={input} rows={1}
           onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-          placeholder={ui.inputPlaceholder}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); sendMessage(); } }}
+          placeholder={ui.inputPlaceholder} aria-label={ui.inputPlaceholder} maxLength={8000} disabled={isLoading}
         />
         <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleFile} />
-        <button className="c-btn c-btn-photo" onClick={() => fileRef.current?.click()}><Camera size={15} strokeWidth={2.75} />{ui.photoBtn}</button>
-        <button className={`c-btn c-btn-voice ${isRecording ? 'rec' : ''}`} onClick={isRecording ? () => { recognitionRef.current?.stop(); setIsRecording(false); } : startVoice}>
+        <button className="c-btn c-btn-photo" disabled={isLoading || isExtractingVideo} onClick={() => fileRef.current?.click()}><Camera size={15} strokeWidth={2.75} />{ui.photoBtn}</button>
+        <button className={`c-btn c-btn-voice ${isRecording ? 'rec' : ''}`} disabled={isLoading} onClick={isRecording ? () => { recognitionRef.current?.stop(); setIsRecording(false); } : startVoice}>
           <Mic size={15} strokeWidth={2.75} />{isRecording ? ui.recording : ui.voiceBtn}
         </button>
         {isLoading
-          ? <button className="c-send stop" onClick={() => { abortController?.abort(); setIsLoading(false); }} aria-label={ui.ariaStop}><Square size={15} strokeWidth={2.75} fill="currentColor" /></button>
-          : <button className="c-send" onClick={() => sendMessage()} disabled={!input.trim() && !pendingImage && !pendingVideo} aria-label={ui.ariaSend}><Send size={16} strokeWidth={2.75} /></button>}
+          ? <button className="c-send stop" onClick={() => { abortController?.abort(); }} aria-label={ui.ariaStop}><Square size={15} strokeWidth={2.75} fill="currentColor" /></button>
+          : <button className="c-send" onClick={() => sendMessage()} disabled={isExtractingVideo || (!input.trim() && !pendingImage && !pendingVideo)} aria-label={ui.ariaSend}><Send size={16} strokeWidth={2.75} /></button>}
       </div>
     </div>
   );
@@ -728,7 +804,7 @@ export default function NauryzAI() {
         {sidebarOpen && <div className="sb-overlay" onClick={() => setSidebarOpen(false)} />}
 
         {/* SIDEBAR */}
-        <div className={`sidebar ${sidebarOpen ? '' : 'closed'}`}>
+        <div ref={sidebarRef} aria-hidden={!sidebarOpen} className={`sidebar ${sidebarOpen ? '' : 'closed'}`}>
           <div className="sb-brand">
             <div className="sb-brand-icon"><Logo size={19} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -738,7 +814,7 @@ export default function NauryzAI() {
             <button className="sb-hide-btn" onClick={() => setSidebarOpen(false)} aria-label={ui.ariaHideHistory}><ChevronLeft size={16} strokeWidth={2.75} /></button>
           </div>
 
-          <button className="sb-new" onClick={createNewChat}><Plus size={14} strokeWidth={2.75} />{ui.newChat}</button>
+          <button className="sb-new" disabled={isLoading} onClick={createNewChat}><Plus size={14} strokeWidth={2.75} />{ui.newChat}</button>
 
           <div className="sb-section-label">{ui.historySection}</div>
           <div className="sb-chats">
@@ -746,11 +822,13 @@ export default function NauryzAI() {
             {chats.slice().reverse().map(chat => {
               const lastMsg = chat.messages[chat.messages.length - 1];
               return (
-                <div key={chat.id} className={`chat-row ${chat.id === activeChatId ? 'act' : ''}`} onClick={() => switchChat(chat.id)}>
+                <div key={chat.id} className={`chat-row ${chat.id === activeChatId ? 'act' : ''}`}>
+                  <button className="chat-open" disabled={isLoading} onClick={() => switchChat(chat.id)} aria-current={chat.id === activeChatId ? 'true' : undefined}>
                   <div className="chat-row-title">{chat.title}</div>
                   <div className="chat-row-snippet">{lastMsg?.diagnosis?.inspection.slice(0, 40) || lastMsg?.content.slice(0, 40) || ''}</div>
                   <div className="chat-row-date">{formatChatDate(chat.createdAt, lang)}</div>
-                  <button className="chat-del" onClick={e => deleteChat(chat.id, e)} aria-label={ui.ariaDeleteChat}><X size={12} strokeWidth={2.75} /></button>
+                  </button>
+                  <button className="chat-del" disabled={isLoading} onClick={e => deleteChat(chat.id, e)} aria-label={ui.ariaDeleteChat}><X size={12} strokeWidth={2.75} /></button>
                 </div>
               );
             })}
@@ -759,7 +837,7 @@ export default function NauryzAI() {
           <div className="sb-footer">
             <div className="sb-avatar">Ф</div>
             <span className="sb-footer-label">{ui.farmer}</span>
-            {sessionCost > 0 && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--color-neutral-500)' }}>${sessionCost.toFixed(4)}</span>}
+            {sessionCost > 0 && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--color-neutral-500)' }}>≈ ${sessionCost.toFixed(4)}</span>}
           </div>
         </div>
 
@@ -769,32 +847,41 @@ export default function NauryzAI() {
             {!sidebarOpen && <button className="icon-btn" onClick={() => setSidebarOpen(true)} aria-label={ui.ariaShowHistory}><Menu size={16} strokeWidth={2.75} /></button>}
             <div className="topbar-title">{isEmpty ? ui.newChatTitle : (messages[0]?.content || ui.chatFallback)}</div>
             <div className="topbar-spacer" />
-            <button className={`pill-btn ${searchMode ? 'on' : ''}`} onClick={() => setSearchMode(!searchMode)} title={searchMode ? ui.searchOn : ui.searchOff}>
+            <button className={`pill-btn ${searchMode ? 'on' : ''}`} aria-pressed={searchMode} aria-label={searchMode ? ui.searchOn : ui.searchOff} onClick={() => setSearchMode(!searchMode)} title={searchMode ? ui.searchOn : ui.searchOff}>
               <Globe size={14} strokeWidth={2.75} /><span className="pill-btn-label">{searchMode ? ui.searchOn : ui.searchOff}</span>
             </button>
-            <button className="pill-btn" onClick={() => setShowFeedCalc(true)} title={ui.feedCalcBtn}>
+            <button className="pill-btn" aria-label={ui.feedCalcBtn} onClick={() => setShowFeedCalc(true)} title={ui.feedCalcBtn}>
               <Calculator size={14} strokeWidth={2.75} /><span className="pill-btn-label">{ui.feedCalcBtn}</span>
             </button>
             <button className="icon-btn" onClick={() => setDarkMode(d => !d)} aria-label={ui.ariaTheme}>
               {darkMode ? <Moon size={16} strokeWidth={2.75} /> : <Sun size={16} strokeWidth={2.75} />}
             </button>
-            <button className="icon-btn lang-btn" onClick={() => setLang(l => l === 'ru' ? 'kk' : 'ru')} aria-label="Language">{ui.langToggle}</button>
+            <button className="icon-btn lang-btn" onClick={() => setLang(l => l === 'ru' ? 'kk' : 'ru')} aria-label={lang === 'kk' ? 'Тіл: қазақша. Орысшаға ауысу' : 'Язык: русский. Переключить на казахский'}>{ui.langToggle}</button>
           </div>
 
-          <div className="content">
+          <div className="content" aria-busy={isLoading}>
             {isEmpty ? (
               <div className="empty">
+                <div className="welcome-eyebrow">{lang === 'kk' ? 'ШАРУАШЫЛЫҒЫҢЫЗҒА КӨМЕК' : 'ВАШ ПОМОЩНИК В ХОЗЯЙСТВЕ'}</div>
                 <div className="empty-badge"><Logo size={34} strokeWidth={2.5} /></div>
                 <h2 className="empty-heading">{ui.emptyHeading}</h2>
                 <p className="empty-sub">{ui.emptySubtitle}</p>
+                <div className="welcome-tools">
+                  <span>📷 {lang === 'kk' ? 'Фото бойынша талдау' : 'Разбор по фото'}</span>
+                  <span>🌾 {lang === 'kk' ? 'Жем және күтім' : 'Кормление и уход'}</span>
+                  <span>🧮 {lang === 'kk' ? 'Жем есебі' : 'Расчёт корма без ИИ'}</span>
+                </div>
                 <div className="quick-grid">
-                  {SUGGESTIONS.map((s, i) => (
-                    <button key={s.id} className="quick-card" style={{ animationDelay: `${i * 0.06}s` }} onClick={() => askQuickQuestion(s)}>
+                  {SUGGESTIONS.slice(0, 4).map((s, i) => (
+                    <button key={s.id} className="quick-card" style={{ animationDelay: `${i * 0.06}s` }} onClick={() => askQuickQuestion({ ...s, text: lang === 'kk' ? s.textKk : s.text })}>
                       <span className="quick-emoji">{s.emoji}</span>
                       <span className="quick-text">{lang === 'kk' ? s.textKk : s.text}</span>
                     </button>
                   ))}
                 </div>
+                <details className="more-topics"><summary>{lang === 'kk' ? 'Басқа тақырыптар' : 'Ещё темы: профилактика и развитие хозяйства'}</summary><div className="quick-grid secondary-grid">
+                  {SUGGESTIONS.slice(4).map(s => <button key={s.id} className="quick-card" onClick={() => askQuickQuestion({ ...s, text: lang === 'kk' ? s.textKk : s.text })}><span className="quick-emoji">{s.emoji}</span><span className="quick-text">{lang === 'kk' ? s.textKk : s.text}</span></button>)}
+                </div></details>
               </div>
             ) : (
               <div className="feed">
@@ -811,7 +898,7 @@ export default function NauryzAI() {
                                 {msg.image && !msg.videoPreview && <img src={msg.image.preview} alt="" />}
                               </div>
                             )}
-                            {msg.content && !(msg.image || msg.videoPreview) && <div className="u-bubble">{msg.content}</div>}
+                            {msg.content && !['📸 Фото', '🎥 Видео'].includes(msg.content) && <div className="u-bubble">{msg.content}</div>}
                           </>
                         ) : msg.diagnosis ? (
                           <DiagnosisCard diagnosis={msg.diagnosis} onOpen={() => setActiveDiagnosis(msg.diagnosis!)} ui={ui} />
@@ -827,14 +914,16 @@ export default function NauryzAI() {
                               <div className="analyzing-caption">{ui.analyzingCaption}</div>
                             </div>
                           ) : (
-                            <div className="typing-card"><span /><span /><span /></div>
+                            <div className="typing-card" role="status" aria-label={lang === 'kk' ? 'Жауап дайындалуда' : 'Готовлю ответ'}><span /><span /><span /></div>
                           )
                         ) : (
                           <div className="a-card">{renderMarkdown(msg.content)}</div>
                         )}
+                        {msg.sources?.length ? <details className="answer-sources"><summary>{lang === 'kk' ? 'Жауапқа берілген дереккөздер' : 'Источники, переданные для ответа'} · {msg.sources.length}</summary><ul>{msg.sources.map(source => <li key={source}>{source}</li>)}</ul></details> : null}
+                        {msg.historyTrimmed && <div className="context-note">{lang === 'kk' ? 'Алғашқы сұрақ пен соңғы хабарлар қолданылды. Маңызды мәліметтерді қажет болса қайталаңыз.' : 'Использованы начальный вопрос и последние сообщения. При необходимости повторите важные детали.'}</div>}
                         <div className="msg-time">
                           {msg.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                          {msg.role === 'assistant' && typeof msg.costUsd === 'number' && <span> · ${msg.costUsd.toFixed(4)}</span>}
+                          {msg.role === 'assistant' && typeof msg.costUsd === 'number' && <span title={lang === 'kk' ? 'Токен құнының болжамы, іздеу ақысы кірмейді' : 'Оценка стоимости токенов; без платы за веб-поиск'}> · ≈ ${msg.costUsd.toFixed(4)}</span>}
                         </div>
                       </div>
                     </div>
@@ -849,7 +938,7 @@ export default function NauryzAI() {
                           <div className="analyzing-caption">Определяю симптомы по изображению…</div>
                         </div>
                       ) : (
-                        <div className="typing-card"><span /><span /><span /></div>
+                        <div className="typing-card" role="status" aria-label={lang === 'kk' ? 'Жауап дайындалуда' : 'Готовлю ответ'}><span /><span /><span /></div>
                       )}
                     </div>
                   )}
@@ -863,6 +952,13 @@ export default function NauryzAI() {
           {isExtractingVideo && <div className="preview"><span className="preview-label">🎥 Обрабатываю видео...</span></div>}
           {pendingVideo && !isExtractingVideo && <div className="preview"><video src={pendingVideo.preview} /><span className="preview-label">🎥 Видео ({pendingVideo.frames.length} кадров)</span><button className="preview-rm" onClick={() => setPendingVideo(null)} aria-label="Убрать"><X size={16} strokeWidth={2.75} /></button></div>}
 
+          {storageWarning && <div className="context-note storage-note" role="status">{lang === 'kk' ? 'Браузер тарихты сақтай алмады. Маңызды жауаптарды көшіріп алыңыз.' : 'Браузер не смог сохранить историю. Скопируйте важные ответы перед закрытием страницы.'}</div>}
+          {requestError && <div className="request-error" role="alert"><span>{requestError}</span><button onClick={() => {
+            const last = messages.filter(m => m.role === 'user').at(-1);
+            if (last) { setInput(last.content); setPendingImage(last.image || null); if (last.frames?.length && last.videoPreview) setPendingVideo({ frames: last.frames, preview: last.videoPreview }); }
+            setRequestError(''); textareaRef.current?.focus();
+          }}>{lang === 'kk' ? 'Сұрақты өңдеу' : 'Вернуть вопрос'}</button></div>}
+          <div className="composer-hint">{searchMode ? (lang === 'kk' ? 'Интернеттен іздеу қосулы · қажет кезде өшіріңіз' : 'Интернет-поиск включён · отключайте, когда свежие данные не нужны') : (lang === 'kk' ? 'МАҢЫЗДЫ: шұғыл жағдайда ветеринарға хабарласыңыз' : 'Важные решения проверяйте с ветеринаром. При ухудшении состояния не ждите ответа ИИ.')}</div>
           {Composer}
         </div>
       </div>
