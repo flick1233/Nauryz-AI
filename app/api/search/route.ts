@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server';
 
 export async function POST(req: NextRequest) {
+  if (process.env.NAURYZ_CHAT_MODE === 'mock') {
+    return Response.json({ result: 'Mock-режим: внешний поиск отключён.' }, { headers: { 'X-Nauryz-Chat-Mode': 'mock' } });
+  }
   try {
     const { query } = await req.json();
 

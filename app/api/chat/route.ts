@@ -222,12 +222,64 @@ function parseClarifyJson(raw: string): {
   };
 }
 
+const MOCK_CHAT_MODE = process.env.NAURYZ_CHAT_MODE === 'mock';
+
+function mockChatResponse(messages: any[]): Response {
+  const last = messages[messages.length - 1];
+  const text = typeof last?.content === 'string' ? last.content : '';
+  const diagnosis = {
+    inspection: 'Демонстрационная предварительная оценка: это не диагноз и не назначение.',
+    symptoms: ['Тестовый сценарий без внешних сервисов'],
+    causes: [{ name: 'Демонстрационный вариант', pct: 0, severity: 'low' }],
+    homeCare: ['Проверьте условия содержания и при тревожных признаках обратитесь к ветеринару.'],
+    recommendations: ['Этот ответ создан локальным mock-режимом.'],
+    needsVet: false,
+  };
+  const clarify = {
+    type: 'clarify',
+    title: 'Демонстрационные уточнения',
+    intro: 'Mock-режим не использует AI, базу или внешние API.',
+    groups: [{ heading: 'Для проверки интерфейса', itemsText: 'Введите обычное сообщение или отправьте следующий тестовый ответ.' }],
+    causesPreview: ['Демонстрационный вариант'],
+    closing: 'Для реальной оценки используйте обычный режим только после отдельного согласования.',
+  };
+  const payload = text.includes('[mock:diagnosis]')
+    ? [`\n___DIAGNOSIS___${JSON.stringify(diagnosis)}`]
+    : text.includes('[mock:clarify]')
+      ? [`\n___CLARIFY___${JSON.stringify(clarify)}`]
+      : ['Mock-режим включён. Этот поток не обращается к AI, embeddings или базе данных. ', 'Можно проверить отмену, повтор и отображение ответа.'];
+  payload.push(`\n___COST___${JSON.stringify({ inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, costUsd: 0 })}`);
+
+  const encoder = new TextEncoder();
+  let index = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelled = false;
+  const readable = new ReadableStream({
+    start(controller) {
+      const emit = () => {
+        if (cancelled) return;
+        if (index >= payload.length) { controller.close(); return; }
+        controller.enqueue(encoder.encode(payload[index++]));
+        timer = setTimeout(emit, 250);
+      };
+      emit();
+    },
+    cancel() {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    },
+  });
+  return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Nauryz-Chat-Mode': 'mock' } });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: 'messages are required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
+    // This server-only opt-in is intentionally before every provider, embedding, and database path.
+    if (MOCK_CHAT_MODE) return mockChatResponse(messages);
     // Defense in depth: even a custom client cannot resend historical media or unbounded history.
     const safeMessages = buildChatContext(messages);
 

@@ -98,4 +98,20 @@ assert.match(page, /Желіде немесе жауап ағынында қат
 assert.match(page, /requestIdRef\.current/);
 assert.match(page, /requireStreamBody\(res\)/);
 
-console.log('chat reliability mock regressions passed: context, media cap, HTTP/body error, stream drop, abort+follow-up, retry, RU/KK, request guard');
+// The server-only mock gate must execute before any RAG, embedding, or provider path.
+const route = fs.readFileSync(path.join(root, 'app', 'api', 'chat', 'route.ts'), 'utf8');
+const mockGate = route.indexOf('if (MOCK_CHAT_MODE) return mockChatResponse(messages);');
+assert.ok(mockGate >= 0);
+for (const externalPath of ['buildChatContext(messages)', 'searchKnowledge(queryText)', 'client.messages.stream']) {
+  assert.ok(mockGate < route.indexOf(externalPath), `mock gate must precede ${externalPath}`);
+}
+const mockBody = route.slice(route.indexOf('function mockChatResponse'), route.indexOf('export async function POST'));
+assert.equal(mockBody.includes('fetch('), false);
+assert.equal(mockBody.includes('.rpc('), false);
+assert.equal(mockBody.includes('client.messages'), false);
+const searchRoute = fs.readFileSync(path.join(root, 'app', 'api', 'search', 'route.ts'), 'utf8');
+const searchGate = searchRoute.indexOf("process.env.NAURYZ_CHAT_MODE === 'mock'");
+assert.ok(searchGate >= 0);
+assert.ok(searchGate < searchRoute.indexOf("fetch('https://api.anthropic.com"));
+
+console.log('chat reliability mock regressions passed: context, media cap, HTTP/body error, stream drop, abort+follow-up, retry, RU/KK, request guard, provider-free chat/search mock gates');
