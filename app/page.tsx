@@ -8,7 +8,7 @@ import './nauryz.css';
 
 interface ImageData { data: string; mediaType: string; preview: string }
 type Severity = 'low' | 'medium' | 'high' | 'critical';
-interface Cause { name: string; pct: number; severity: Severity }
+interface Cause { name: string; severity: Severity }
 interface DiagnosisData {
   inspection: string; symptoms: string[]; causes: Cause[];
   homeCare: string[]; recommendations: string[]; needsVet: boolean;

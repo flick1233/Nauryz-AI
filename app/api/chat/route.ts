@@ -96,14 +96,14 @@ const VISION_JSON_INSTRUCTIONS = `ФОРМАТ ОТВЕТА — только в�
 {
   "inspection": "подробное описание того, что видно на фото/видео — оперение, поза, глаза, клюв, помёт, подстилка, поведение между кадрами (если видео)",
   "symptoms": ["конкретный симптом 1", "конкретный симптом 2"],
-  "causes": [{"name": "название диагноза", "pct": 42, "severity": "high"}],
+  "causes": [{"name": "название диагноза", "severity": "high"}],
   "homeCare": ["конкретное действие фермера дома, с дозировкой/сроком"],
   "recommendations": ["критерий обращения к ветеринару"],
   "needsVet": true
 }
 
 Правила:
-- causes: 2-4 диагноза по убыванию pct (проценты — условная вероятность, не обязаны давать в сумме 100). severity: "low"|"medium"|"high"|"critical" — critical только для особо опасных контагиозных болезней (например, Ньюкаслская болезнь, птичий грипп).
+- causes: provide 2-4 candidate causes as short text only; do not include numeric probabilities or confidence. severity: "low"|"medium"|"high"|"critical" — critical только для особо опасных контагиозных болезней (например, Ньюкаслская болезнь, птичий грипп).
 - homeCare — то, что фермер может сделать САМ без ветеринара: конкретные препараты, дозы, изоляция, дезинфекция.
 - recommendations — КОГДА и ПОЧЕМУ обязательно нужен очный осмотр ветеринара (тревожные признаки: массовый падёж, кровь, судороги и т.п.), а не общие советы.
 - needsVet — true, если хотя бы один вероятный диагноз требует очного ветеринарного вмешательства.
@@ -174,7 +174,7 @@ const SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
 // некорректной форме — вызывающий код в этом случае откатывается к обычному тексту.
 function parseDiagnosisJson(raw: string): {
   inspection: string; symptoms: string[];
-  causes: { name: string; pct: number; severity: string }[];
+  causes: { name: string; severity: string }[];
   homeCare: string[]; recommendations: string[]; needsVet: boolean;
 } {
   const cleaned = raw.trim().replace(/^```(json)?\s*/i, '').replace(/```\s*$/i, '');
@@ -185,11 +185,10 @@ function parseDiagnosisJson(raw: string): {
   const causes = data.causes
     .map((c: any) => ({
       name: String(c?.name ?? '').trim(),
-      pct: Math.max(0, Math.min(100, Number(c?.pct) || 0)),
       severity: SEVERITIES.has(c?.severity) ? c.severity : 'medium',
     }))
-    .filter((c: any) => c.name)
-    .sort((a: any, b: any) => b.pct - a.pct);
+    // Unknown legacy fields are ignored so older model responses remain parseable.
+    .filter((c: any) => c.name);
   return {
     inspection: data.inspection,
     symptoms: Array.isArray(data.symptoms) ? data.symptoms.filter((s: any) => typeof s === 'string') : [],
@@ -230,7 +229,7 @@ function mockChatResponse(messages: any[]): Response {
   const diagnosis = {
     inspection: 'Демонстрационная предварительная оценка: это не диагноз и не назначение.',
     symptoms: ['Тестовый сценарий без внешних сервисов'],
-    causes: [{ name: 'Демонстрационный вариант', pct: 0, severity: 'low' }],
+    causes: [{ name: 'Демонстрационный вариант', severity: 'low' }],
     homeCare: ['Проверьте условия содержания и при тревожных признаках обратитесь к ветеринару.'],
     recommendations: ['Этот ответ создан локальным mock-режимом.'],
     needsVet: false,

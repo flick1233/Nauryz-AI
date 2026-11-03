@@ -109,6 +109,10 @@ const mockBody = route.slice(route.indexOf('function mockChatResponse'), route.i
 assert.equal(mockBody.includes('fetch('), false);
 assert.equal(mockBody.includes('.rpc('), false);
 assert.equal(mockBody.includes('client.messages'), false);
+// Vision responses must not request, generate, or display invented confidence percentages.
+assert.doesNotMatch(route, /\bpct\b/);
+assert.doesNotMatch(page, /\bpct\b/);
+assert.match(route, /Do not invent or display confidence percentages/);
 const searchRoute = fs.readFileSync(path.join(root, 'app', 'api', 'search', 'route.ts'), 'utf8');
 const searchGate = searchRoute.indexOf("process.env.NAURYZ_CHAT_MODE === 'mock'");
 assert.ok(searchGate >= 0);
