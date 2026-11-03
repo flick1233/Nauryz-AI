@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { buildChatContext } from '@/lib/chat-context';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -19,6 +20,8 @@ function getSupabase() {
 // Фото/видео требуют более сильной модели для точной диагностики; обычный текстовый чат остаётся на Haiku ради стоимости.
 const MODEL_VISION = process.env.ANTHROPIC_MODEL_VISION || 'claude-sonnet-5';
 const MODEL_TEXT = process.env.ANTHROPIC_MODEL_TEXT || 'claude-haiku-4-5-20251001';
+
+const SAFETY_LANGUAGE = `Treat every health assessment as preliminary, not a final diagnosis. Do not invent or display confidence percentages. Do not require a specific medication or dosage: only give a dose when the user provides a veterinary prescription or official product label, and otherwise advise a veterinarian. Keep emergency signs and safe isolation/hygiene guidance. Answer in the user's language.`;
 
 const SYSTEM_PROMPT_BASE = `Ты — Nauryz AI, профессиональный агро-ассистент и аналитик для казахстанских фермеров.
 
@@ -222,12 +225,14 @@ function parseClarifyJson(raw: string): {
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return new Response(JSON.stringify({ error: 'messages are required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+    // Defense in depth: even a custom client cannot resend historical media or unbounded history.
+    const safeMessages = buildChatContext(messages);
 
-    const lastMessage = messages[messages.length - 1];
-    const queryText =
-      typeof lastMessage?.content === 'string'
-        ? lastMessage.content
-        : lastMessage?.content?.find((c: any) => c.type === 'text')?.text || '';
+    const lastMessage = safeMessages[safeMessages.length - 1];
+    const queryText = lastMessage?.content ?? '';
 
     const hasMedia = lastMessage?.image || lastMessage?.frames;
     // RAG работает и для фото/видео, если фермер приложил текст к снимку
@@ -235,7 +240,7 @@ export async function POST(req: NextRequest) {
     const ragContext = queryText ? await searchKnowledge(queryText) : '';
 
     const model = hasMedia ? MODEL_VISION : MODEL_TEXT;
-    const systemPromptText = SYSTEM_PROMPT_BASE + '\n\n' + (hasMedia ? VISION_JSON_INSTRUCTIONS : TEXT_FORMAT_INSTRUCTIONS);
+    const systemPromptText = SYSTEM_PROMPT_BASE + '\n\n' + (hasMedia ? VISION_JSON_INSTRUCTIONS : TEXT_FORMAT_INSTRUCTIONS) + '\n\n' + SAFETY_LANGUAGE;
 
     // Статичный промпт кэшируется (ephemeral, ~5 мин TTL) и переиспользуется между запросами
     // всех пользователей — RAG-контекст динамический, поэтому идёт отдельным, некэшируемым блоком.
@@ -244,7 +249,7 @@ export async function POST(req: NextRequest) {
       ...(ragContext ? [{ type: 'text' as const, text: ragContext }] : []),
     ];
 
-    const anthropicMessages = messages.map((msg: any) => {
+    const anthropicMessages = safeMessages.map((msg: any) => {
       if (msg.role === 'user' && msg.frames && msg.frames.length > 0) {
         return {
           role: 'user',
@@ -279,6 +284,7 @@ export async function POST(req: NextRequest) {
 
     const readable = new ReadableStream({
       async start(controller) {
+        try {
         let inputTokens = 0;
         let outputTokens = 0;
         let cacheCreationTokens = 0;
@@ -352,6 +358,11 @@ export async function POST(req: NextRequest) {
         );
         controller.enqueue(encoder.encode(`\n___COST___${JSON.stringify({ inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, costUsd })}`));
         controller.close();
+        } catch (error) {
+          console.error('Chat stream error:', error);
+          controller.enqueue(encoder.encode('\n___ERROR___' + JSON.stringify({ error: 'stream_interrupted' })));
+          controller.close();
+        }
       },
     });
 

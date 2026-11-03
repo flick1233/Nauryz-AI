@@ -1,0 +1,12 @@
+2026-10-31 local offline/mock regression run
+
+Command: npm run test:chat-reliability
+Result: PASS
+Coverage actually executed without a provider: structured diagnosis/clarify context; 12-message cap; old-media omission; bad HTTP/body gate; successful chunked stream; partial stream drop; abort after a received chunk followed by a successful new stream; retry removes one transport-error placeholder; RU/KK and request-id guard assertions.
+
+Command: npx tsc --noEmit
+Result: PASS
+
+Command: one-process fake-env build (SUPABASE_URL=http://127.0.0.1:9 and mock keys)
+Result: PASS
+Note: this only verifies compilation/import-time behavior. It does not contact or validate Supabase, Anthropic, OpenAI, /api/sync, or production.

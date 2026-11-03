@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:chat-reliability": "node scripts/test-chat-reliability.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",

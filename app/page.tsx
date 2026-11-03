@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Menu, Plus, Camera, Mic, Send, X, Square, Globe, Calculator, ChevronLeft, Sun, Moon } from 'lucide-react';
+import { buildChatContext, messagesForRetry } from '@/lib/chat-context';
+import { firstControlMarker, readChatStream, requireStreamBody, visibleStreamText } from '@/lib/chat-stream';
 import './nauryz.css';
 
 interface ImageData { data: string; mediaType: string; preview: string }
@@ -19,6 +21,7 @@ interface Message {
   diagnosis?: DiagnosisData;
   clarify?: ClarifyData;
   isCalcCard?: boolean;
+  transportError?: boolean;
   costUsd?: number; timestamp: Date;
 }
 interface Chat { id: string; title: string; messages: Message[]; createdAt: Date; }
@@ -104,7 +107,7 @@ interface UiDict {
 
 const UI: Record<'ru' | 'kk', UiDict> = {
   ru: {
-    subtitle: 'Агро-ассистент', emptyHeading: 'Сәлем! Чем помочь?', emptySubtitle: 'Задай вопрос о птицеводстве или прикрепи фото курицы/птичника — поставлю диагноз и подскажу решение',
+    subtitle: 'Агро-ассистент', emptyHeading: 'Сәлем! Чем помочь?', emptySubtitle: 'Задай вопрос о птицеводстве или прикрепи фото курицы/птичника — дам предварительную оценку и безопасные следующие шаги',
     inputPlaceholder: 'Опиши проблему или задай вопрос…', recording: 'Запись…', photoBtn: 'Фото', voiceBtn: 'Голос',
     ariaHideHistory: 'Скрыть историю', ariaShowHistory: 'Показать историю', ariaClose: 'Закрыть', ariaRemove: 'Убрать', ariaStop: 'Остановить', ariaSend: 'Отправить', ariaDeleteChat: 'Удалить чат', ariaTheme: 'Тема',
     newChat: 'Новый чат', newChatTitle: 'Новый чат', chatFallback: 'Чат', historySection: 'История', noChats: 'Нет чатов', farmer: 'Фермер',
@@ -136,6 +139,9 @@ const UI: Record<'ru' | 'kk', UiDict> = {
 };
 
 // Логотип-росток из design-handoff (Nauryz AI - Web.dc.html) — воспроизведён как есть, не заменён на Lucide.
+// Keep the Kazakh welcome copy aligned with the preliminary-assessment safety wording.
+UI.kk.emptySubtitle = 'Құс шаруашылығы туралы сұрақ қой немесе тауық/қораның фотосын тірке — алдын ала бағалап, қауіпсіз келесі қадамдарды ұсынамын';
+
 function Logo({ size = 20, strokeWidth = 2.5 }: { size?: number; strokeWidth?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 34 34">
@@ -213,8 +219,8 @@ function DiagnosisCard({ diagnosis, onOpen, ui }: { diagnosis: DiagnosisData; on
           <div className="diag-causes">
             {topCauses.map((c, i) => (
               <div key={i}>
-                <div className="diag-cause-row"><span>{c.name}</span><span className="diag-cause-pct">{c.pct}%</span></div>
-                <div className="diag-bar-track"><div className="diag-bar-fill" style={{ width: `${c.pct}%`, background: SEVERITY_STYLE[c.severity].bar }} /></div>
+                <div className="diag-cause-row"><span>{c.name}</span></div>
+                <div className="diag-bar-track"><div className="diag-bar-fill" style={{ width: '100%', background: SEVERITY_STYLE[c.severity].bar }} /></div>
               </div>
             ))}
           </div>
@@ -252,11 +258,8 @@ function DiagnosisModal({ diagnosis, onClose, ui }: { diagnosis: DiagnosisData; 
                   const sev = SEVERITY_STYLE[c.severity];
                   return (
                     <div key={i} className="dlg-cause-card" style={{ background: sev.bg }}>
-                      <div className="dlg-cause-row">
-                        <span style={{ color: sev.text }}>{c.name}</span>
-                        <span style={{ color: sev.text }} className="dlg-cause-pct-big">{c.pct}%</span>
-                      </div>
-                      <div className="diag-bar-track" style={{ background: 'rgba(255,255,255,0.6)' }}><div className="diag-bar-fill" style={{ width: `${c.pct}%`, background: sev.bar }} /></div>
+                      <div className="dlg-cause-row"><span style={{ color: sev.text }}>{c.name}</span></div>
+                      <div className="diag-bar-track" style={{ background: 'rgba(255,255,255,0.6)' }}><div className="diag-bar-fill" style={{ width: '100%', background: sev.bar }} /></div>
                     </div>
                   );
                 })}
@@ -508,6 +511,8 @@ export default function NauryzAI() {
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => { setSidebarOpen(window.innerWidth >= 768); }, []);
   useEffect(() => {
@@ -531,8 +536,16 @@ export default function NauryzAI() {
   }, []);
   useEffect(() => { if (chats.length > 0) try { localStorage.setItem('nauryz-v4', JSON.stringify(chats)); } catch {} }, [chats]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isLoading]);
+  useEffect(() => () => {
+    requestIdRef.current += 1;
+    activeRequestRef.current?.abort();
+  }, []);
 
   const createNewChat = () => {
+    requestIdRef.current += 1;
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    setIsLoading(false); setAbortController(null);
     const id = Date.now().toString();
     setChats(prev => [...prev, { id, title: 'Новый чат', messages: [], createdAt: new Date() }]);
     setActiveChatId(id); setMessages([]); setSessionCost(0);
@@ -540,6 +553,10 @@ export default function NauryzAI() {
   };
 
   const switchChat = (chatId: string) => {
+    requestIdRef.current += 1;
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    setIsLoading(false); setAbortController(null);
     if (activeChatId) setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages } : c));
     const chat = chats.find(c => c.id === chatId);
     if (chat) { setActiveChatId(chatId); setMessages(chat.messages); setSessionCost(0); }
@@ -610,7 +627,8 @@ export default function NauryzAI() {
     recognitionRef.current = r; r.start(); setIsRecording(true);
   };
 
-  const sendMessage = useCallback(async (text?: string) => {
+  const sendMessage = useCallback(async (text?: string, retry = false) => {
+    if (isLoading) return;
     const content = text || input.trim();
     if (!content && !pendingImage && !pendingVideo) return;
     let chatId = activeChatId;
@@ -620,36 +638,40 @@ export default function NauryzAI() {
       setActiveChatId(id); chatId = id;
     }
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: content || (pendingVideo ? '🎥 Видео' : '📸 Фото'), image: pendingImage || undefined, frames: pendingVideo?.frames, videoPreview: pendingVideo?.preview, timestamp: new Date() };
-    const newMsgs = [...messages, userMsg];
+    // Retry replaces the last transport error and reuses the existing user message.
+    const newMsgs = retry ? messagesForRetry(messages, true) : [...messages, userMsg];
     setMessages(newMsgs); setInput(''); setPendingImage(null); setPendingVideo(null); setIsLoading(true);
     if (messages.length === 0) setChats(prev => prev.map(c => c.id === chatId ? { ...c, title: content?.slice(0, 35) || 'Чат' } : c));
-    const ac = new AbortController(); setAbortController(ac);
+    const ac = new AbortController();
+    const requestId = ++requestIdRef.current;
+    activeRequestRef.current = ac;
+    const isCurrentRequest = () => requestId === requestIdRef.current;
+    const updateMessages = (update: React.SetStateAction<Message[]>) => {
+      if (isCurrentRequest()) setMessages(update);
+    };
+    setAbortController(ac);
     let searchCtx = '';
     if (searchMode && content) {
       try { const sr = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: content }), signal: ac.signal }); if (sr.ok) { const sd = await sr.json(); searchCtx = sd.result ? `\n\n[Из интернета]:\n${sd.result}` : ''; } } catch {}
     }
-    const apiMsgs = newMsgs.map(m => ({ role: m.role, content: m.role === 'user' && m.id === userMsg.id && searchCtx ? m.content + searchCtx : m.content, image: m.image, frames: m.frames }));
+    // Keep cards in the conversation, cap history, and only attach media to this request.
+    const apiMsgs = buildChatContext(newMsgs.map(m => m.role === 'user' && m.id === userMsg.id && searchCtx ? { ...m, content: m.content + searchCtx } : m));
+    let aid = '';
     try {
       const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: apiMsgs }), signal: ac.signal });
-      if (!res.ok) throw new Error('Ошибка');
-      const reader = res.body!.getReader(); const dec = new TextDecoder();
-      let text2 = ''; const aid = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, { id: aid, role: 'assistant', content: '', timestamp: new Date() }]);
-      while (true) {
-        const { done, value } = await reader.read(); if (done) break;
-        text2 += dec.decode(value, { stream: true });
-        const di = text2.indexOf('\n___DIAGNOSIS___');
-        const cli = text2.indexOf('\n___CLARIFY___');
-        const ci = text2.indexOf('\n___COST___');
-        const markers = [di, cli, ci].filter(i => i >= 0);
-        const cut = markers.length ? Math.min(...markers) : -1;
-        setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: cut >= 0 ? text2.slice(0, cut) : text2 } : m));
-      }
+      const body = requireStreamBody(res);
+      let text2 = ''; aid = (Date.now() + 1).toString();
+      updateMessages(prev => [...prev, { id: aid, role: 'assistant', content: '', timestamp: new Date() }]);
+      text2 = await readChatStream(body, ac.signal, received => {
+        text2 = received;
+        updateMessages(prev => prev.map(m => m.id === aid ? { ...m, content: visibleStreamText(received) } : m));
+      });
       const di = text2.indexOf('\n___DIAGNOSIS___');
       const cli = text2.indexOf('\n___CLARIFY___');
       const ci = text2.indexOf('\n___COST___');
+      const ei = text2.indexOf('\n___ERROR___');
       const afterMarker = (start: number) => {
-        const following = [di, cli, ci].filter(i => i > start);
+        const following = [di, cli, ci, ei].filter(i => i > start);
         return following.length ? Math.min(...following) : undefined;
       };
       let diagnosis: DiagnosisData | undefined;
@@ -660,15 +682,47 @@ export default function NauryzAI() {
       if (cli >= 0) {
         try { clarify = JSON.parse(text2.slice(cli + '\n___CLARIFY___'.length, afterMarker(cli))); } catch {}
       }
-      const firstMarker = [di, cli, ci].filter(i => i >= 0);
-      const plainContent = text2.slice(0, firstMarker.length ? Math.min(...firstMarker) : undefined);
-      if (ci >= 0) { try { const { costUsd } = JSON.parse(text2.slice(ci + '\n___COST___'.length)); setMessages(prev => prev.map(m => m.id === aid ? { ...m, costUsd } : m)); setSessionCost(p => p + costUsd); } catch {} }
-      setMessages(prev => prev.map(m => m.id === aid ? { ...m, content: plainContent, diagnosis, clarify } : m));
+      const firstMarker = firstControlMarker(text2);
+      const plainContent = firstMarker >= 0 ? text2.slice(0, firstMarker) : text2;
+      if (ei >= 0 || ci < 0) throw new Error('Stream interrupted');
+      if (ci >= 0) { try { const { costUsd } = JSON.parse(text2.slice(ci + '\n___COST___'.length)); updateMessages(prev => prev.map(m => m.id === aid ? { ...m, costUsd } : m)); if (isCurrentRequest()) setSessionCost(p => p + costUsd); } catch {} }
+      updateMessages(prev => prev.map(m => m.id === aid ? { ...m, content: plainContent, diagnosis, clarify } : m));
       setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...newMsgs, { id: aid, role: 'assistant' as const, content: plainContent, diagnosis, clarify, timestamp: new Date() }] } : c));
     } catch (err: any) {
-      if (err.name !== 'AbortError') setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '❌ Ошибка. Проверьте API ключ.', timestamp: new Date() }]);
-    } finally { setIsLoading(false); setAbortController(null); }
-  }, [input, pendingImage, pendingVideo, messages, searchMode, activeChatId]);
+      // A stream can fail after the placeholder exists. Update it instead of adding a duplicate reply.
+      if (aid) {
+        const cancelled = err?.name === 'AbortError' || ac.signal.aborted;
+        const content = cancelled
+          ? (lang === 'kk' ? 'Жауап тоқтатылды.' : 'Ответ остановлен.')
+          : (lang === 'kk' ? 'Желіде немесе жауап ағынында қате болды. Қайталап көріңіз.' : 'Ошибка сети или потока ответа. Попробуйте ещё раз.');
+        updateMessages(prev => prev.map(m => m.id === aid ? { ...m, content, transportError: !cancelled } : m));
+        return;
+      }
+      if (err.name !== 'AbortError') updateMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: lang === 'kk' ? 'Желі қатесі. Қайталап көріңіз.' : 'Ошибка сети. Попробуйте ещё раз.', transportError: true, timestamp: new Date() }]);
+    } finally {
+      if (isCurrentRequest()) {
+        activeRequestRef.current = null;
+        setIsLoading(false); setAbortController(null);
+      }
+    }
+  }, [input, pendingImage, pendingVideo, messages, searchMode, activeChatId, isLoading, lang]);
+
+  const retryLastMessage = () => {
+    const lastUser = [...messages].reverse().find(m => m.role === 'user');
+    if (lastUser) sendMessage(lastUser.content, true);
+  };
+
+  const stopResponse = () => {
+    requestIdRef.current += 1;
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    setAbortController(null); setIsLoading(false);
+    setMessages(prev => {
+      const last = prev[prev.length - 1];
+      if (!last || last.role !== 'assistant' || last.content) return prev;
+      return [...prev.slice(0, -1), { ...last, content: lang === 'kk' ? 'Жауап тоқтатылды.' : 'Ответ остановлен.' }];
+    });
+  };
 
   // "Норма корма для бройлеров" — живой калькулятор в чате, а не запрос к API
   // (design_handoff README: "implement as real client-side state bound to number inputs").
@@ -715,7 +769,7 @@ export default function NauryzAI() {
           <Mic size={15} strokeWidth={2.75} />{isRecording ? ui.recording : ui.voiceBtn}
         </button>
         {isLoading
-          ? <button className="c-send stop" onClick={() => { abortController?.abort(); setIsLoading(false); }} aria-label={ui.ariaStop}><Square size={15} strokeWidth={2.75} fill="currentColor" /></button>
+          ? <button className="c-send stop" onClick={stopResponse} aria-label={ui.ariaStop}><Square size={15} strokeWidth={2.75} fill="currentColor" /></button>
           : <button className="c-send" onClick={() => sendMessage()} disabled={!input.trim() && !pendingImage && !pendingVideo} aria-label={ui.ariaSend}><Send size={16} strokeWidth={2.75} /></button>}
       </div>
     </div>
@@ -831,6 +885,11 @@ export default function NauryzAI() {
                           )
                         ) : (
                           <div className="a-card">{renderMarkdown(msg.content)}</div>
+                        )}
+                        {msg.transportError && !isLoading && (
+                          <button className="pill-btn" style={{ marginTop: 8 }} onClick={retryLastMessage}>
+                            {lang === 'kk' ? 'Қайталау' : 'Повторить'}
+                          </button>
                         )}
                         <div className="msg-time">
                           {msg.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
