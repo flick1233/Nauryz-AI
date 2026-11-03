@@ -113,5 +113,10 @@ const searchRoute = fs.readFileSync(path.join(root, 'app', 'api', 'search', 'rou
 const searchGate = searchRoute.indexOf("process.env.NAURYZ_CHAT_MODE === 'mock'");
 assert.ok(searchGate >= 0);
 assert.ok(searchGate < searchRoute.indexOf("fetch('https://api.anthropic.com"));
+const statusRoute = fs.readFileSync(path.join(root, 'app', 'api', 'chat', 'status', 'route.ts'), 'utf8');
+assert.match(statusRoute, /providersInvoked: false/);
+assert.equal(statusRoute.includes('fetch('), false);
+assert.equal(statusRoute.includes('createClient'), false);
+assert.equal(statusRoute.includes('Anthropic'), false);
 
-console.log('chat reliability mock regressions passed: context, media cap, HTTP/body error, stream drop, abort+follow-up, retry, RU/KK, request guard, provider-free chat/search mock gates');
+console.log('chat reliability mock regressions passed: context, media cap, HTTP/body error, stream drop, abort+follow-up, retry, RU/KK, request guard, provider-free chat/search mock gates, read-only status route');
